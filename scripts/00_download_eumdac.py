@@ -9,11 +9,7 @@ import time
 import os
 from urllib3.exceptions import ProtocolError, IncompleteRead
 import re
-from keys import consumer_key, consumer_secret
-
-# Insert personal key and secret
-# consumer_key = '2WA_GJftbSnmegkQ6gNBxSqo_Foa'
-# consumer_secret = 'khEoQY_BjsQD1QDZ83ntHE9gIBoa'
+from params import consumer_key, consumer_secret, raw_data_dir 
 
 def extract_first_datetime(filename):
     match = re.search(r"\d{14}", filename)
@@ -58,7 +54,8 @@ datastore = eumdac.DataStore(token)
 datatailor = eumdac.DataTailor(token)
 
 # Desired collection
-coll = 'EO:EUM:DAT:0662' # MTG FCI NR
+# coll = 'EO:EUM:DAT:0662' # MTG FCI NR
+coll = 'EO:EUM:DAT:0800' # MTG FCI CLM
 
 # Display search options for the selected collection
 try:
@@ -77,13 +74,13 @@ except requests.exceptions.RequestException as error:
     print(f"Unexpected error: {error}")
 
 # Option 1 : Download all products resulting from a search
-start = datetime.datetime(2025, 4, 1, 0, 0)
-end = datetime.datetime(2025, 12, 1, 0, 0)
+start = datetime.datetime(2025, 2, 2, 0, 0)
+end = datetime.datetime(2025, 2, 2, 0, 10)
 products = selected_collection.search(
     dtstart=start, dtend=end
     )
 
-dirout = r"D:\EUMETSAT_data\raw" #More disk space on D
+dirout = raw_data_dir
 t0 = time.time()
 MAX_RETRIES = 3
 
