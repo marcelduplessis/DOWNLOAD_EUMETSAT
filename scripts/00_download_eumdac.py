@@ -9,11 +9,7 @@ import time
 import os
 from urllib3.exceptions import ProtocolError, IncompleteRead
 import re
-from keys import consumer_key, consumer_secret
-
-# Insert personal key and secret
-# consumer_key = '2WA_GJftbSnmegkQ6gNBxSqo_Foa'
-# consumer_secret = 'khEoQY_BjsQD1QDZ83ntHE9gIBoa'
+from params import consumer_key, consumer_secret
 
 def extract_first_datetime(filename):
     match = re.search(r"\d{14}", filename)
