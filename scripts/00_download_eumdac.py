@@ -74,13 +74,9 @@ except requests.exceptions.RequestException as error:
     print(f"Unexpected error: {error}")
 
 # Option 1 : Download all products resulting from a search
-<<<<<<< HEAD
 start = datetime.datetime(2025, 1, 1, 0, 0)
 end = datetime.datetime(2026, 1, 1, 0, 0)
-=======
-start = datetime.datetime(2025, 2, 2, 0, 0)
-end = datetime.datetime(2025, 2, 2, 2, 0)
->>>>>>> a6a0ce20b0df028cca94d1a9236e36416c15ab1d
+
 products = selected_collection.search(
     dtstart=start, dtend=end
     )
