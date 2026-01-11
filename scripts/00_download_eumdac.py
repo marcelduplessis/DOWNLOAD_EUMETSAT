@@ -54,8 +54,8 @@ datastore = eumdac.DataStore(token)
 datatailor = eumdac.DataTailor(token)
 
 # Desired collection
-# coll = 'EO:EUM:DAT:0662' # MTG FCI NR
-coll = 'EO:EUM:DAT:0800' # MTG FCI CLM
+coll = 'EO:EUM:DAT:0662' # MTG FCI NR
+# coll = 'EO:EUM:DAT:0800' # MTG FCI CLM
 
 # Display search options for the selected collection
 try:
@@ -75,7 +75,7 @@ except requests.exceptions.RequestException as error:
 
 # Option 1 : Download all products resulting from a search
 start = datetime.datetime(2025, 2, 2, 0, 0)
-end = datetime.datetime(2025, 2, 2, 0, 10)
+end = datetime.datetime(2025, 2, 2, 2, 0)
 products = selected_collection.search(
     dtstart=start, dtend=end
     )
