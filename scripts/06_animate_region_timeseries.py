@@ -40,7 +40,7 @@ dirout.mkdir(parents=True, exist_ok=True)
 # -----------------------------
 # TIME RANGE
 # -----------------------------
-start, end = "202502020000", "202502020200"
+start, end = "202501250000", "202501250100"
 
 dates = pd.date_range(
     start=pd.to_datetime(start, format="%Y%m%d%H%M"),
@@ -69,7 +69,7 @@ files = [
     for d in dates_str
     for fname in (dirin / product).glob(f"{d}*.nc")
 ]
-
+print(files)
 ds = xr.open_mfdataset(
     [str(f) for f in files],
     combine="nested",

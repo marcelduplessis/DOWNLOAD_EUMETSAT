@@ -1,129 +1,145 @@
 import datetime
 from zoneinfo import ZoneInfo
-PACIFIC = ZoneInfo("America/Los_Angeles")
-import eumdac
+from pathlib import Path
+import re
 import shutil
 import time
 import requests
-import time
-import os
 from urllib3.exceptions import ProtocolError, IncompleteRead
-import re
-from params import consumer_key, consumer_secret, raw_data_dir 
 
-def extract_first_datetime(filename):
+import eumdac
+from params import consumer_key, consumer_secret, raw_data_dir_rrad, raw_data_dir_clm
+
+# -----------------------------
+# TIME ZONE
+# -----------------------------
+PACIFIC = ZoneInfo("America/Los_Angeles")
+
+# -----------------------------
+# PATHS
+# -----------------------------
+RAW_DIR_RRAD = Path(raw_data_dir_rrad).expanduser().resolve()
+RAW_DIR_CLM  = Path(raw_data_dir_clm).expanduser().resolve()
+
+RAW_DIR_RRAD.mkdir(parents=True, exist_ok=True)
+RAW_DIR_CLM.mkdir(parents=True, exist_ok=True)
+
+# -----------------------------
+# HELPERS
+# -----------------------------
+def extract_first_datetime(filename: str) -> str:
     match = re.search(r"\d{14}", filename)
     return match.group(0) if match else filename
 
-def check_local_file(target, expected_size):
+
+def check_local_file(target: Path, expected_size: int) -> str:
     """
     Returns:
       - 'missing'
       - 'complete'
       - 'incomplete'
     """
-    if not os.path.exists(target):
+    if not target.exists():
         return "missing"
 
     if expected_size <= 0:
         return "incomplete"  # can't verify → force re-download
 
-    local_size = os.path.getsize(target)
-
-    if local_size == expected_size:
+    if target.stat().st_size == expected_size:
         return "complete"
     else:
         return "incomplete"
 
 
 def get_token():
-    """Generate token, by default validity = 24h"""
+    """Generate token (valid ~24h)."""
     credentials = (consumer_key, consumer_secret)
     token = eumdac.AccessToken(credentials)
     try:
         print(f"This token '{token}' expires {token.expiration}")
     except requests.exceptions.HTTPError as error:
-        print(f"Error when tryng the request to the server: '{error}'")
+        print(f"Error requesting token: {error}")
     return token
 
+
+# -----------------------------
+# AUTH
+# -----------------------------
 token = get_token()
 token_expiration = token.expiration.replace(tzinfo=PACIFIC)
 
-# Initialize DataStore and DataTailor instances
 datastore = eumdac.DataStore(token)
 datatailor = eumdac.DataTailor(token)
 
-# Desired collection
-# coll = 'EO:EUM:DAT:0662' # MTG FCI NR
-coll = 'EO:EUM:DAT:0800' # MTG FCI CLM
+# -----------------------------
+# COLLECTION
+# -----------------------------
+# coll = 'EO:EUM:DAT:0662'  # MTG FCI NR
+coll = 'EO:EUM:DAT:0800'    # MTG FCI CLM
 
-# Display search options for the selected collection
+if coll == 'EO:EUM:DAT:0662':
+    RAW_DIR = RAW_DIR_RRAD
+elif coll == 'EO:EUM:DAT:0800':
+    RAW_DIR = RAW_DIR_CLM
+else:
+    RAW_DIR = RAW_DIR_RRAD  # default
+
 try:
-    selected_collection = datastore.get_collection(coll) 
-    # print(f"{selected_collection} - {selected_collection.title}")
-    # print(f"Description: {selected_collection.abstract}")
-    # print(f"Metadata: {selected_collection.metadata}")
-    # print(f"Search options: {selected_collection.search_options} \n")
-except eumdac.datastore.DataStoreError as error:
-    print(f"Error related to the data store: '{error}'")
-except eumdac.collection.CollectionError as error:
-    print(f"Error related to the collection: '{error}'")
-except requests.exceptions.ConnectionError as error:
-    print(f"Error related to the connection: '{error}'")
-except requests.exceptions.RequestException as error:
-    print(f"Unexpected error: {error}")
+    selected_collection = datastore.get_collection(coll)
+except Exception as error:
+    raise RuntimeError(f"Failed to load collection {coll}: {error}")
 
-# Option 1 : Download all products resulting from a search
-start = datetime.datetime(2025, 1, 1, 0, 0)
-end = datetime.datetime(2026, 1, 1, 0, 0)
+# -----------------------------
+# SEARCH
+# -----------------------------
+start = datetime.datetime(2025, 1, 25, 0, 0)
+end   = datetime.datetime(2025, 1, 25, 1, 0)
 
-products = selected_collection.search(
-    dtstart=start, dtend=end
-    )
+products = selected_collection.search(dtstart=start, dtend=end)
 
-dirout = raw_data_dir
+# -----------------------------
+# DOWNLOAD LOOP
+# -----------------------------
 t0 = time.time()
 MAX_RETRIES = 3
 
 for product in products:
 
-    # Open once to get filename + expected size
+    # Get filename & expected size
     with product.open() as fsrc:
-        filename = os.path.basename(fsrc.name)
+        filename = Path(fsrc.name).name
         expected_size = int(fsrc.headers.get("Content-Length", 0))
-    
+
     dt = extract_first_datetime(filename)
-    target = os.path.join(dirout, filename)
+    target = RAW_DIR / filename
     status = check_local_file(target, expected_size)
 
     if status == "complete":
-        print(f"Skipping already downloaded timestamp : {dt}")
+        print(f"Skipping already downloaded timestamp: {dt}")
         continue
 
     if status == "incomplete":
         print(f"Incomplete file for timestamp {dt}, re-downloading")
-        if os.path.exists(target):
-            os.remove(target)
+        target.unlink(missing_ok=True)
 
-    # refresh token if needed
+    # Refresh token if needed
     now_pt = datetime.datetime.now(PACIFIC)
     if now_pt + datetime.timedelta(minutes=10) > token_expiration:
-        print("refreshing token")
+        print("Refreshing token")
         token = get_token()
         token_expiration = token.expiration.replace(tzinfo=PACIFIC)
         datastore = eumdac.DataStore(token)
         datatailor = eumdac.DataTailor(token)
 
-    # retry loop
+    # Retry loop
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            tmp_target = target + ".part"
+            tmp_target = target.with_suffix(target.suffix + ".part")
 
-            with product.open() as fsrc:
-                with open(tmp_target, "wb") as fdst:
-                    shutil.copyfileobj(fsrc, fdst)
+            with product.open() as fsrc, open(tmp_target, "wb") as fdst:
+                shutil.copyfileobj(fsrc, fdst)
 
-            os.replace(tmp_target, target)
+            tmp_target.replace(target)
             print(f"Download of timestamp {dt} finished.")
             break
 
@@ -143,7 +159,7 @@ for product in products:
             if attempt < MAX_RETRIES:
                 time.sleep(10)
             else:
-                print("Giving up on this product.")
+                print("Giving up on this product")
 
         except requests.exceptions.RequestException as error:
             print(f"Request error for {filename}: {error}")
@@ -152,6 +168,5 @@ for product in products:
         except Exception as error:
             print(f"Fatal unexpected error for {filename}: {error}")
             break
-   
-print(f'All downloads are finished. Time elapsed : {(time.time()-t0)/60:.1f} min')
 
+print(f"All downloads finished. Time elapsed: {(time.time() - t0) / 60:.1f} min")

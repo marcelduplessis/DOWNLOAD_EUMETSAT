@@ -1,29 +1,3 @@
-## Save time series of FCI L1C-RRAD and L2-CLM products to netcdf format
-
-# Input: raw zip files downloaded from EUMETSAT.
-
-# Each zip file extracts to 40 body chunk .nc files + 1 trailer chunk .nc file + metadata.
-# Each body chunk is a portion of the full disk scan at a given timestep.
-# For each FD scan, this code reconstructs a region of interest (lon_min, lon_max, lat_min, lat_max) over a time span of interest (t0 -> t1). 
-# FD scans are separated by 10 minutes. Note: the start time in the RRAD and CLM file names differ by a few seconds.
-
-# Output: reconstructed snapshot saved as a dataset with the FCI channels as variables and x,y (lon,lat) as dimensions/coordinates.
-
-"""
-MTG FCI L1C (RRAD) & L2 (CLM) processing workflow (separate .nc per product)
-
-1. Loop through time steps
-2. Unzip FCI and CLM files into temp folder
-3. Load only radiance channels
-4. Crop and resample
-5. Save .nc
-6. Empty temp folder for next file
-"""
-
-"""
-Save time series of FCI L1C-RRAD and L2-CLM products to NetCDF format
-"""
-
 from zipfile import ZipFile
 import re
 from pathlib import Path
@@ -34,26 +8,28 @@ from pyresample import create_area_def
 import xarray as xr
 import shutil
 import gc
+from params import raw_data_dir_rrad, raw_data_dir_clm
 
 # -----------------------------
 # PATH SETUP (cross-platform)
 # -----------------------------
+RAW_DIR_RRAD = Path(raw_data_dir_rrad).expanduser().resolve()
+RAW_DIR_CLM  = Path(raw_data_dir_clm).expanduser().resolve()
+
 BASE_DIR = Path(__file__).resolve().parents[1]  # GOFLOW_LR root
-
-dirin = BASE_DIR / "data" / "raw"
 dirout_unzip = BASE_DIR / "data" / "tmp"
-dirout_fci = BASE_DIR / "data" / "processed" / "1C-RRAD_nc"
-dirout_clm = BASE_DIR / "data" / "processed" / "2-CLM_nc"
+dirout_fci   = BASE_DIR / "data" / "processed" / "1C-RRAD_nc"
+dirout_clm   = BASE_DIR / "data" / "processed" / "2-CLM_nc"
 
-dirout_fci.mkdir(parents=True, exist_ok=True)
-dirout_clm.mkdir(parents=True, exist_ok=True)
-dirout_unzip.mkdir(parents=True, exist_ok=True)
+# Create directories if they do not exist
+for d in [dirout_fci, dirout_clm, dirout_unzip]:
+    d.mkdir(parents=True, exist_ok=True)
 
 # -----------------------------
-# TIME WINDOW
+# RESTRICT THE TIME WINDOW TO READ
 # -----------------------------
-t0 = datetime.strptime("20250202000000", "%Y%m%d%H%M%S")
-t1 = datetime.strptime("20250203000000", "%Y%m%d%H%M%S")
+t0 = datetime.strptime("20250125000000", "%Y%m%d%H%M%S")
+t1 = datetime.strptime("20250126000000", "%Y%m%d%H%M%S")
 
 # -----------------------------
 # AREA OF INTEREST
@@ -95,23 +71,34 @@ def unzip_file(zip_path: Path, out_dir: Path):
 def get_fci_scene(data_dir: Path, product: str, fmt: str | None = None):
     """Load FCI Scene using Satpy."""
     if product == "L1C":
-        files = find_files_and_readers(
-            base_dir=str(data_dir), reader="fci_l1c_nc"
-        )
-        return Scene(filenames=files)
+        reader="fci_l1c_nc"
+        filenames = list(data_dir.glob("*.nc"))
+        return Scene(filenames=[str(f) for f in filenames], reader=reader)
     else:  # L2
         reader = "fci_l2_nc" if fmt == "nc" else "fci_l2_grib"
         filenames = list(data_dir.glob(f"*{product}*"))
         return Scene(filenames=[str(f) for f in filenames], reader=reader)
 
 
+# def get_fci_scene(data_dir: Path, product: str, fmt: str | None = None):
+#     """Load FCI Scene using Satpy."""
+#     if product == "L1C":
+#         files = find_files_and_readers(str(data_dir), reader="fci_l1c_nc")
+#         return Scene(filenames=files)
+#     else:  # L2
+#         reader = "fci_l2_nc" if fmt == "nc" else "fci_l2_grib"
+#         filenames = list(data_dir.glob(f"*{product}*"))
+#         return Scene(filenames=[str(f) for f in filenames], reader=reader)
+
+
 # -----------------------------
 # MAIN LOOP
 # -----------------------------
-zip_files = [
-    f for f in dirin.iterdir()
-    if f.suffix == ".zip" and "FCI" in f.name
-]
+# Collect zip files from both RRAD and CLM raw directories
+zip_files_rrad = [f for f in RAW_DIR_RRAD.iterdir() if f.suffix == ".zip"]
+zip_files_clm  = [f for f in RAW_DIR_CLM.iterdir()  if f.suffix == ".zip"]
+
+zip_files = zip_files_rrad + zip_files_clm
 
 for zip_file in zip_files:
     match = re.search(r"OPE_(\d{14})_", zip_file.name)
@@ -124,37 +111,27 @@ for zip_file in zip_files:
 
     # Unzip
     unzip_file(zip_file, dirout_unzip)
-
+    
     # -----------------------------
     # LOAD, CROP, RESAMPLE
     # -----------------------------
     if "1C-RRAD" in zip_file.name:
         scn = get_fci_scene(dirout_unzip, product="L1C")
-        channels = get_radiance_channels(scn.available_dataset_names())
-        scn.load(channels)
-        scn = scn.crop(ll_bbox=(lon_min, lat_min, lon_max, lat_max))
-        scn = scn.resample(area_def)
-        ds = scn.to_xarray()
-
-        outfile = dirout_fci / f"{sensing_time:%Y%m%d%H%M%S}_FCI-1C-RRAD.nc"
-        ds.to_netcdf(outfile)
-        print(f"Saved {outfile}")
-
-        del scn, ds
-
+        outfile = dirout_fci / f"{sensing_time:%Y%m%d%H%M}_FCI-1C-RRAD.nc"
+        
     elif "CLM" in zip_file.name:
         scn = get_fci_scene(dirout_unzip, product="CLM", fmt="bin")
-        channels = get_radiance_channels(scn.available_dataset_names())
-        scn.load(channels)
-        scn = scn.crop(ll_bbox=(lon_min, lat_min, lon_max, lat_max))
-        scn = scn.resample(area_def)
-        ds = scn.to_xarray()
+        outfile = dirout_clm / f"{sensing_time:%Y%m%d%H%M}_FCI-2-CLM.nc"
 
-        outfile = dirout_clm / f"{sensing_time:%Y%m%d%H%M%S}_FCI-2-CLM.nc"
-        ds.to_netcdf(outfile)
-        print(f"Saved {outfile}")
-
-        del scn, ds
+    channels = get_radiance_channels(scn.available_dataset_names())
+    scn.load(channels)
+    scn = scn.crop(ll_bbox=(lon_min, lat_min, lon_max, lat_max))
+    scn = scn.resample(area_def)
+    ds = scn.to_xarray()
+    
+    ds.to_netcdf(outfile)
+    print(f"Saved {outfile}")
+    del scn, ds
 
     # -----------------------------
     # CLEANUP
