@@ -6,7 +6,6 @@ scripts/params.py
 
 # Conda environment
 .venv/
-env/
 
 # Jupyter
 .ipynb_checkpoints
