@@ -29,7 +29,7 @@ for d in [dirout_fci, dirout_clm, dirout_unzip]:
 # RESTRICT THE TIME WINDOW TO READ
 # -----------------------------
 t0 = datetime.strptime("20250125000000", "%Y%m%d%H%M%S")
-t1 = datetime.strptime("20250126000000", "%Y%m%d%H%M%S")
+t1 = datetime.strptime("20250125010000", "%Y%m%d%H%M%S")
 
 # -----------------------------
 # AREA OF INTEREST
@@ -60,25 +60,24 @@ def get_radiance_channels(all_channels):
         )
     ]
 
-
 def unzip_file(zip_path: Path, out_dir: Path):
     """Unzip a single zip file."""
     out_dir.mkdir(parents=True, exist_ok=True)
     with ZipFile(zip_path, "r") as z:
         z.extractall(out_dir)
 
-
 def get_fci_scene(data_dir: Path, product: str, fmt: str | None = None):
     """Load FCI Scene using Satpy."""
     if product == "L1C":
         reader="fci_l1c_nc"
-        filenames = list(data_dir.glob("*.nc"))
+        filenames = list(data_dir.glob("*CHK-BODY*.nc"))
+        # filenames = list(data_dir.glob("*.nc")) # includes *CHK-TRAIL*0041.nc which isn't data
+        # print(filenames[0])
         return Scene(filenames=[str(f) for f in filenames], reader=reader)
     else:  # L2
         reader = "fci_l2_nc" if fmt == "nc" else "fci_l2_grib"
         filenames = list(data_dir.glob(f"*{product}*"))
         return Scene(filenames=[str(f) for f in filenames], reader=reader)
-
 
 # def get_fci_scene(data_dir: Path, product: str, fmt: str | None = None):
 #     """Load FCI Scene using Satpy."""
