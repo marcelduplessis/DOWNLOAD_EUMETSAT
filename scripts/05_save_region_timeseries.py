@@ -95,7 +95,7 @@ def get_fci_scene(data_dir: Path, product: str, fmt: str | None = None):
 # -----------------------------
 # Collect zip files from both RRAD and CLM raw directories
 zip_files_rrad = [f for f in RAW_DIR_RRAD.iterdir() if f.suffix == ".zip"]
-zip_files_clm  = [f for f in RAW_DIR_CLM.iterdir()  if f.suffix == ".zip"]
+zip_files_clm  = [] # [f for f in RAW_DIR_CLM.iterdir()  if f.suffix == ".zip"]
 
 zip_files = zip_files_rrad + zip_files_clm
 
@@ -117,24 +117,28 @@ for zip_file in zip_files:
     if "1C-RRAD" in zip_file.name:
         scn = get_fci_scene(dirout_unzip, product="L1C")
         outfile = dirout_fci / f"{sensing_time:%Y%m%d%H%M}_FCI-1C-RRAD.nc"
-        
     elif "CLM" in zip_file.name:
         scn = get_fci_scene(dirout_unzip, product="CLM", fmt="bin")
         outfile = dirout_clm / f"{sensing_time:%Y%m%d%H%M}_FCI-2-CLM.nc"
 
+    print(scn.available_dataset_names())
     channels = get_radiance_channels(scn.available_dataset_names())
     scn.load(channels)
     scn = scn.crop(ll_bbox=(lon_min, lat_min, lon_max, lat_max))
     scn = scn.resample(area_def)
     ds = scn.to_xarray()
     
+    print("ds after to_xarray")
+    print(ds)
+    ds = ds.compute()
+    # print(ds[channels[0].values])
     ds.to_netcdf(outfile)
     print(f"Saved {outfile}")
-    del scn, ds
+    # del scn,ds
 
     # -----------------------------
     # CLEANUP
     # -----------------------------
-    shutil.rmtree(dirout_unzip)
-    dirout_unzip.mkdir(parents=True, exist_ok=True)
-    gc.collect()
+    # shutil.rmtree(dirout_unzip)
+    # dirout_unzip.mkdir(parents=True, exist_ok=True)
+    # gc.collect()

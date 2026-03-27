@@ -8,7 +8,7 @@ import requests
 from urllib3.exceptions import ProtocolError, IncompleteRead
 
 import eumdac
-from params import consumer_key, consumer_secret, raw_data_dir_rrad, raw_data_dir_clm
+from params import consumer_key, consumer_secret, raw_data_dir_rrad_nr, raw_data_dir_rrad_hr, raw_data_dir_clm
 
 # -----------------------------
 # TIME ZONE
@@ -18,10 +18,12 @@ PACIFIC = ZoneInfo("America/Los_Angeles")
 # -----------------------------
 # PATHS
 # -----------------------------
-RAW_DIR_RRAD = Path(raw_data_dir_rrad).expanduser().resolve()
+RAW_DIR_RRAD_NR = Path(raw_data_dir_rrad_nr).expanduser().resolve()
+RAW_DIR_RRAD_HR = Path(raw_data_dir_rrad_hr).expanduser().resolve()
 RAW_DIR_CLM  = Path(raw_data_dir_clm).expanduser().resolve()
 
-RAW_DIR_RRAD.mkdir(parents=True, exist_ok=True)
+RAW_DIR_RRAD_NR.mkdir(parents=True, exist_ok=True)
+RAW_DIR_RRAD_HR.mkdir(parents=True, exist_ok=True)
 RAW_DIR_CLM.mkdir(parents=True, exist_ok=True)
 
 # -----------------------------
@@ -72,17 +74,20 @@ datastore = eumdac.DataStore(token)
 datatailor = eumdac.DataTailor(token)
 
 # -----------------------------
-# COLLECTION
+# COLLECTION : UNCOMMENT DESIRED COLLECTION
 # -----------------------------
 # coll = 'EO:EUM:DAT:0662'  # MTG FCI NR
-coll = 'EO:EUM:DAT:0800'    # MTG FCI CLM
+coll = "EO:EUM:DAT:0665"    # MTG FCI HR
+# coll = 'EO:EUM:DAT:0800'    # MTG FCI CLM
 
 if coll == 'EO:EUM:DAT:0662':
-    RAW_DIR = RAW_DIR_RRAD
+    RAW_DIR = RAW_DIR_RRAD_NR
 elif coll == 'EO:EUM:DAT:0800':
     RAW_DIR = RAW_DIR_CLM
+elif coll == "EO:EUM:DAT:0665":
+    RAW_DIR = RAW_DIR_RRAD_HR
 else:
-    RAW_DIR = RAW_DIR_RRAD  # default
+    raise ValueError("Invalid collection name")
 
 try:
     selected_collection = datastore.get_collection(coll)
@@ -90,10 +95,10 @@ except Exception as error:
     raise RuntimeError(f"Failed to load collection {coll}: {error}")
 
 # -----------------------------
-# SEARCH
+# SEARCH: SET DESIRED TIME SPAN
 # -----------------------------
-start = datetime.datetime(2025, 1, 25, 0, 0)
-end   = datetime.datetime(2025, 1, 25, 1, 0)
+start = datetime.datetime(2025, 1, 1, 0, 0)
+end   = datetime.datetime(2025, 11, 10, 2, 0) #resuming from approximately the last downloaded file before server error
 
 products = selected_collection.search(dtstart=start, dtend=end)
 
@@ -151,7 +156,7 @@ for product in products:
                 print("Giving up on this product")
 
         except eumdac.product.ProductError as error:
-            print(f"Product error for {filename}: {error.msg}")
+            print(f"Product error for {filename}: {error}")
             break
 
         except requests.exceptions.ConnectionError as error:
