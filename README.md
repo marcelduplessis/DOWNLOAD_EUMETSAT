@@ -1,5 +1,6 @@
 # Coded by Lucie Reymondet (UCSD-Scripps)
 
-this is an edit done on the windows server by Lucie
-
-and this an edit done on mac by lucie
+Scripts to
+- download raw full disk products from EUMETSAT MTG or MSG satellites
+- process rawfull disk timeseries to a projected regions
+- animate projected regions
