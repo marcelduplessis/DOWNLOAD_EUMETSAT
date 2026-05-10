@@ -76,9 +76,10 @@ datatailor = eumdac.DataTailor(token)
 # -----------------------------
 # COLLECTION : UNCOMMENT DESIRED COLLECTION
 # -----------------------------
-# coll = 'EO:EUM:DAT:0662'  # MTG FCI NR
+# coll = 'EO:EUM:DAT:0662'    # MTG FCI NR
 coll = "EO:EUM:DAT:0665"    # MTG FCI HR
-# coll = 'EO:EUM:DAT:0800'    # MTG FCI CLM
+# coll = 'EO:EUM:DAT:0800'    # MTG FCI CLM, cloud_mask, grib 
+# coll = 'EO:EUM:DAT:0678'    # MTG FCI CLS, cloud_state, netcdf 
 
 if coll == 'EO:EUM:DAT:0662':
     RAW_DIR = RAW_DIR_RRAD_NR
