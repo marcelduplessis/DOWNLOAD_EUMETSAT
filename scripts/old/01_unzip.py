@@ -3,7 +3,7 @@ import re
 import os
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[1] #GOLFOW_LR directory
+BASE_DIR = Path(__file__).resolve().parents[1] #DOWNLOAD_EUMETSAT directory
 
 dirin = BASE_DIR / "data" / "raw"
 dirout_fci = BASE_DIR / "data" / "unzipped" / "1C-RRAD"
