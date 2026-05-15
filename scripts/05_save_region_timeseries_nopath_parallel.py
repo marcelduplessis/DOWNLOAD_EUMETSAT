@@ -79,10 +79,20 @@ def restructure_ds(ds, sensing_time, ir_channels):
     skip = {"geo_area", "latitude", "longitude"}
     data_vars = [v for v in ds.data_vars if v not in skip]
 
+    # Flip lat to S→N so it matches the land mask orientation
+    if lat_vals[0] > lat_vals[-1]:          # currently N→S, need to flip
+        lat_vals = lat_vals[::-1]
+        flip = True
+    else:
+        flip = False
+
     # 4. Re-assemble each variable with (time, lat, lon) layout.
     new_vars = {}
     for var in data_vars:
-        arr = ds[var].values
+        arr = ds[var].values.astype(np.float32)
+        if flip:
+            arr = arr[::-1, :]              # flip rows to match lat_vals
+        arr[LAND_MASK] = np.nan
         arr = arr[np.newaxis, ...]   # Insert a leading time axis → (1, y, x)
         new_vars[var] = xr.DataArray(arr, dims=["time", "lat", "lon"],
                                      attrs=ds[var].attrs)
@@ -99,7 +109,7 @@ def restructure_ds(ds, sensing_time, ir_channels):
     new_ds["time"].attrs.update(standard_name="time", long_name="time")
     new_ds["lat"].attrs.update(standard_name="latitude",  long_name="latitude",  units="degrees_north")
     new_ds["lon"].attrs.update(standard_name="longitude", long_name="longitude", units="degrees_east")
-
+    new_ds.attrs["land_mask"] = "land pixels set to NaN (regionmask Natural Earth 110m)"
     # Compute loggrad for IR channels BT only (gradient is not meaningful for reflectance or CLM)
     if ir_channels:
         for ch in ir_channels:
@@ -206,6 +216,12 @@ def process_zip(zip_file):
 # -----------------------------
 # MAIN PROCESS EXECUTION
 # -----------------------------
+# Global placeholder that workers will populate
+LAND_MASK = None
+def _worker_init(mask):
+    global LAND_MASK
+    LAND_MASK = mask
+
 if __name__ == "__main__":
 
     num_cores = os.cpu_count()
@@ -228,10 +244,28 @@ if __name__ == "__main__":
         
     # Parallel processing
     start_time_perf = time.perf_counter()
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    MASK_PATH = os.path.join(BASE_DIR, f"land_mask_{area_label}.nc")
+    if not os.path.exists(MASK_PATH):
+        raise FileNotFoundError(
+            f"Land mask not found: {MASK_PATH}\n"
+            f"Run build_land_mask.py first."
+        )
+    LAND_MASK = xr.open_dataset(MASK_PATH)["land_mask"].values.astype(bool)
+    print(f"Land mask loaded: {LAND_MASK.sum()} land pixels of {LAND_MASK.size} total")
+
+    with ProcessPoolExecutor(
+        max_workers=max_workers,
+        initializer=_worker_init,
+        initargs=(LAND_MASK,)        # fine at 938kB
+    ) as executor:
         futures = [executor.submit(process_zip, zf) for zf in zip_files]
         for future in as_completed(futures):
             future.result()
+    
+    # with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    #     futures = [executor.submit(process_zip, zf) for zf in zip_files]
+    #     for future in as_completed(futures):
+    #         future.result()
 
     # ── CONCATENATION 
     for product, out_dir in [("FCI-1C-RRAD", DIR_OUT_RRAD), ("FCI-2-CLM", DIR_OUT_CLM)]:
