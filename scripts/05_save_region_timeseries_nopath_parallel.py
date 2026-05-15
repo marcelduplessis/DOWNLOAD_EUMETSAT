@@ -21,8 +21,6 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 RAW_DIR_RRAD = raw_data_dir_rrad_nr
 RAW_DIR_CLM = raw_data_dir_clm
 BASE_DIR = base_dir
-# DIR_OUT_RRAD = processed_data_dir_rrad_nr
-# DIR_OUT_CLM = processed_data_dir_clm
 
 # -----------------------------
 # TIME WINDOW
@@ -53,7 +51,6 @@ def fmt_lat(v):
     return f"{abs(v):.0f}{'N' if v >= 0 else 'S'}"
 
 area_label = f"{fmt_lon(lon_min)}-{fmt_lon(lon_max)}_{fmt_lat(lat_min)}-{fmt_lat(lat_max)}"
-# e.g. "10E-21E_45S-30S"
 
 DIR_OUT_RRAD = os.path.join(processed_data_dir_rrad_nr, area_label)
 DIR_OUT_CLM  = os.path.join(processed_data_dir_clm,     area_label)
@@ -67,17 +64,11 @@ def unzip_file(zip_path, out_dir):
     with ZipFile(zip_path, "r") as z:
         z.extractall(out_dir)
 
-def restructure_ds(ds, sensing_time):
+def restructure_ds(ds, sensing_time, ir_channels):
     """
     Convert satpy output (dims: y, x, time) to CF-style (dims: time, lat, lon).
-
-    After resampling to a latlong AreaDefinition the y-axis maps 1-to-1 to
-    latitude and the x-axis to longitude, so we can safely promote those 1-D
-    coordinate arrays to dimension coordinates and rename accordingly.
     """
     # 1. Extract the 1-D lat/lon values from the 2-D auxiliary coordinates.
-    #    After latlong resampling each row has the same lon and each column
-    #    the same lat, so taking the first row / first column is exact.
     lat_vals = ds["latitude"].values[:, 0]   # shape (y,)
     lon_vals = ds["longitude"].values[0, :]  # shape (x,)
 
@@ -91,14 +82,10 @@ def restructure_ds(ds, sensing_time):
     # 4. Re-assemble each variable with (time, lat, lon) layout.
     new_vars = {}
     for var in data_vars:
-        arr = ds[var].values  # (y, x)  — time dim was squeezed by satpy/xr
-        # Insert a leading time axis → (1, y, x)
-        arr = arr[np.newaxis, ...]
-        new_vars[var] = xr.DataArray(
-            arr,
-            dims=["time", "lat", "lon"],
-            attrs=ds[var].attrs,
-        )
+        arr = ds[var].values
+        arr = arr[np.newaxis, ...]   # Insert a leading time axis → (1, y, x)
+        new_vars[var] = xr.DataArray(arr, dims=["time", "lat", "lon"],
+                                     attrs=ds[var].attrs)
 
     # 5. Build the new dataset with clean 1-D coordinates.
     new_ds = xr.Dataset(
@@ -113,62 +100,90 @@ def restructure_ds(ds, sensing_time):
     new_ds["lat"].attrs.update(standard_name="latitude",  long_name="latitude",  units="degrees_north")
     new_ds["lon"].attrs.update(standard_name="longitude", long_name="longitude", units="degrees_east")
 
-    # Carry over global attributes
-    new_ds.attrs = ds.attrs
+    # Compute loggrad for IR channels BT only (gradient is not meaningful for reflectance or CLM)
+    if ir_channels:
+        for ch in ir_channels:
+            if ch in new_ds:
+                da_2d = new_ds[ch].isel(time=0)   # (lat, lon) slice for differentiate
+                log_grad = compute_loggrad(da_2d, ch)
+                new_ds[f"loggrad_{ch}"] = log_grad.expand_dims("time")
+
+    # Carry over global attributes: commented out for now because causes error
+    # new_ds.attrs = ds.attrs
     return new_ds
+
+def compute_loggrad(da, channel_name, eps=1e-12):
+    """
+    Compute log10 of the horizontal gradient magnitude of a 2D field.
+    Expects da with dims (lat, lon) — a single time slice.
+    Returns a DataArray with the same dims and informative attrs.
+    """
+    Rt = 6378e3
+
+    Rlat = xr.DataArray(
+        Rt * np.cos(np.deg2rad(da["lat"])),
+        dims="lat",
+        coords={"lat": da["lat"].values},
+    )
+
+    dTdx = da.differentiate("lon") * 180 / (np.pi * Rlat)
+    dTdy = da.differentiate("lat") * 180 / (np.pi * Rt)
+
+    gradT = np.sqrt(dTdx**2 + dTdy**2)
+    log_grad = np.log10(gradT + eps).astype(np.float32)
+
+    log_grad.attrs.update(
+        long_name=f"Log10 horizontal gradient magnitude of {channel_name} brightness temperature",
+        units="log10(K/m)",
+        source_channel=channel_name,
+        source_calibration="brightness_temperature",
+        gradient_method="central differences via xarray.differentiate, spherical metric correction",
+        eps=str(eps),
+    )
+    return log_grad
 
 def process_zip(zip_file):
     """Process a single zip file: unzip, load, crop, resample, save NetCDF."""
+    # import cProfile, pstats, io
+    # pr = cProfile.Profile()
+    # pr.enable()
     try:
-        # 1. Create a unique temp folder per worker
+        # Create a unique temp folder per worker
         temp_dir = tempfile.mkdtemp(prefix="unzip_")
 
-        # 2. Scan all raw files and select only valid ones
         RAW_DIR = RAW_DIR_RRAD if 'RRAD' in zip_file else RAW_DIR_CLM
         full_zip_path = os.path.join(RAW_DIR, zip_file)
 
         match = re.search(r"OPE_(\d{14})_", zip_file)
-        if not match:
-            print(f"Skipping {zip_file}: timestamp not found")
-            return
-
         sensing_time = datetime.strptime(match.group(1), "%Y%m%d%H%M%S")
-        if not (t0 <= sensing_time < t1):
-            return
 
-        # 3. Unzip, load, crop, resample
+        # Unzip, load, crop, resample
         unzip_file(full_zip_path, temp_dir)
 
         if "1C-RRAD" in zip_file:
             files = find_files_and_readers(base_dir=temp_dir, reader='fci_l1c_nc')
             scn = Scene(filenames=files)
-            ir_channels = ['ir_105','ir_123']#,'ir_133','ir_38','wv_63','wv_73','ir_87','ir_97']
-            ref_channels = ['nir_13','nir_16']#,'nir_22','vis_04','vis_05','vis_06','vis_08','vis_09']
+            ir_channels = ['ir_105']#,'ir_123','ir_133','ir_38','wv_63','wv_73','ir_87','ir_97']
+            # ref_channels = ['nir_13','nir_16']#,'nir_22','vis_04','vis_05','vis_06','vis_08','vis_09']
             outfile = os.path.join(DIR_OUT_RRAD, f"{sensing_time:%Y%m%d%H%M}_FCI-1C-RRAD.nc")
             scn.load(ir_channels, calibration='brightness_temperature', upper_right_corner='NE')
-            scn.load(ref_channels, calibration='reflectance', upper_right_corner='NE')
+            # scn.load(ref_channels, calibration='reflectance', upper_right_corner='NE')
         elif "CLM" in zip_file:
             filenames = [f for f in os.listdir(temp_dir) if 'CLM' in f]
             files = [os.path.join(temp_dir, f) for f in filenames]
             scn = Scene(filenames=files, reader='fci_l2_grib')
-            channels = ['cloud_mask']
+            clm_channels = ['cloud_mask']
             outfile = os.path.join(DIR_OUT_CLM, f"{sensing_time:%Y%m%d%H%M}_FCI-2-CLM.nc")
-            scn.load(channels, upper_right_corner='NE')
+            scn.load(clm_channels, upper_right_corner='NE')
 
-        # scn.load(channels, upper_right_corner='NE')
         scn = scn.crop(ll_bbox=(lon_min, lat_min, lon_max, lat_max))
         scn_resampled = scn.resample(area_def)
-
         ds = scn_resampled.to_xarray().compute()
         
-        # 4. restructure to (time, lat, lon) dimensions
-        ds = restructure_ds(ds, sensing_time)
-        if '1C-RRAD' in zip_file: 
-            print(ds['ir_105'].attrs)  # should show calibration='BT' and units='K'
-            print(ds['nir_13'].attrs)  # should showcaliration='reflectance' and units='%' or 'percent'
-        else:
-            print(ds['cloud_mask'].attrs)
-
+        # restructure to (time, lat, lon) dimensions, and compute loggrad_BT of ir_channels
+        print("Resampling done. Restructuring...")
+        ds = restructure_ds(ds, sensing_time, ir_channels=ir_channels if "1C-RRAD" in zip_file else None)
+        print("Restructuring done. Saving...")
         ds.to_netcdf(outfile)
 
         # Cleanup
@@ -179,13 +194,20 @@ def process_zip(zip_file):
         print(f"Saved {outfile}")
 
     except Exception as e:
-        print(f"Error processing {zip_file}: {e}")
+        import traceback
+        print(f"Error processing {zip_file}:\n{traceback.format_exc()}")
+    # finally:
+    #     pr.disable()
+    #     s  = io.StringIO()
+    #     ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
+    #     ps.print_stats(15)
+    #     print(f"\n[PROFILE {zip_file}]\n{s.getvalue()}")
 
 # -----------------------------
 # MAIN PROCESS EXECUTION
 # -----------------------------
 if __name__ == "__main__":
-    # Detect available cores
+
     num_cores = os.cpu_count()
     max_workers = 60
     print(f"Detected {num_cores} CPU cores, using {max_workers} workers")
@@ -195,25 +217,28 @@ if __name__ == "__main__":
         os.makedirs(d, exist_ok=True)
 
     # List zip files
-    zip_files_rrad = [f for f in os.listdir(RAW_DIR_RRAD) if f.endswith(".zip")]
-    zip_files_clm  = [f for f in os.listdir(RAW_DIR_CLM)  if f.endswith(".zip")]
+    def in_window(filename):
+        match = re.search(r"OPE_(\d{14})_", filename)
+        if not match:
+            return False
+        return t0 <= datetime.strptime(match.group(1), "%Y%m%d%H%M%S") < t1
+    zip_files_rrad = [f for f in os.listdir(RAW_DIR_RRAD) if f.endswith(".zip") and in_window(f)]
+    zip_files_clm  = [f for f in os.listdir(RAW_DIR_CLM)  if f.endswith(".zip") and in_window(f)]
     zip_files = zip_files_rrad + zip_files_clm
-
+        
     # Parallel processing
     start_time_perf = time.perf_counter()
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(process_zip, zf) for zf in zip_files]
         for future in as_completed(futures):
-            # Raise exceptions if any
             future.result()
 
-    # ── CONCATENATION ────────────────────────────────────────────────────
-
+    # ── CONCATENATION 
     for product, out_dir in [("FCI-1C-RRAD", DIR_OUT_RRAD), ("FCI-2-CLM", DIR_OUT_CLM)]:
         files = sorted(f for f in os.listdir(out_dir) if f.endswith(".nc"))
         if not files:
             continue
-
+        print(files)
         # Extract timestamps from filenames for the output name
         timestamps = [f[:12] for f in files]  # "YYYYMMDDHHMM"
         t_start = timestamps[0]
@@ -229,7 +254,6 @@ if __name__ == "__main__":
             combine="nested",
             parallel=True,
         ) as ds:
-            # ds.to_netcdf(outfile)
             t_ref = str(ds.time.values[0].astype("datetime64[D]"))  # e.g. "2025-01-26"
             ds.to_netcdf(outfile, encoding={"time": {"units": f"minutes since {t_ref}"}})
 
