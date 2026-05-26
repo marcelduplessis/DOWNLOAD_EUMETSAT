@@ -27,55 +27,6 @@ warnings.filterwarnings(
     module="pyproj",
 )
 
-# import matplotlib.pyplot as plt
-# import matplotlib.colors as mcolors
-# def debug_plot(arr, title="", vmax=None, vmin=None):
-#     # CLM colour map: 0=clear water, 1=clear land, 2=cloud, 3=no data
-#     cmap = mcolors.ListedColormap(['#4A90D9', '#6DBF67', '#E8E8E8', '#333333'])
-#     bounds = [-0.5, 0.5, 1.5, 2.5, 3.5]
-#     norm   = mcolors.BoundaryNorm(bounds, cmap.N)
-
-#     fig, ax = plt.subplots(figsize=(10, 8))
-
-#     im = ax.imshow(
-#         arr,
-#         origin="upper",
-#         cmap=cmap,
-#         norm=norm,
-#         interpolation='nearest',
-#         aspect='auto',
-#     )
-
-#     ny, nx = arr.shape
-
-#     # Corner labels
-#     corners = {
-#         "UL": (0, 0),
-#         "UR": (0, nx - 1),
-#         "LL": (ny - 1, 0),
-#         "LR": (ny - 1, nx - 1),
-#     }
-
-#     for label, (yy, xx) in corners.items():
-#         ax.text(
-#             xx,
-#             yy,
-#             label,
-#             color="red",
-#             fontsize=12,
-#             ha="center",
-#             va="center",
-#             bbox=dict(facecolor="white", alpha=0.7),
-#         )
-
-#     ax.set_title(title)
-#     ax.set_xlabel("x / columns")
-#     ax.set_ylabel("y / rows")
-
-#     plt.colorbar(im, ax=ax)
-#     plt.tight_layout()
-#     plt.savefig(title)
-
 # -----------------------------
 # PATH SETUP
 # -----------------------------
@@ -206,16 +157,8 @@ def restructure_ds(ds, sensing_time, ir_channels):
     new_ds["time"].attrs.update(standard_name="time", long_name="time")
     new_ds["lat"].attrs.update(standard_name="latitude",  long_name="latitude",  units="degrees_north")
     new_ds["lon"].attrs.update(standard_name="longitude", long_name="longitude", units="degrees_east")
-    
-    # Add loggrad(BT) for IR channels only
-    # if ir_channels:
-    #     for ch in ir_channels:
-    #         if ch in new_ds:
-    #             da_2d = new_ds[ch].isel(time=0)   # (lat, lon) slice for differentiate
-    #             log_grad = compute_loggrad(da_2d, ch)
-    #             new_ds[f"loggrad_{ch}"] = log_grad.expand_dims("time")
 
-    # Carry over global attributes: commented out for now because causes error
+    # Carry over global attributes: commented out for now because causes error and unnecessary
     # new_ds.attrs = ds.attrs
     return new_ds
 
@@ -265,31 +208,33 @@ def process_zip(zip_file):
 
         # ── RRAD (unchanged) ──────────────────────────────────────────────
         if "1C-RRAD-FDHSI" in zip_file:  # Normal resolution, all 16 channels available
+            outfile         = os.path.join(DIR_OUT_RRAD, 
+                                           f"{sensing_time:%Y%m%d%H%M}_FCI-1C-RRAD-FDHSI.nc")
             files           = find_files_and_readers(base_dir=temp_dir,
                                                       reader='fci_l1c_nc')
             scn             = Scene(filenames=files)
             ir_channels     = ['ir_105']#,'ir_123','ir_133','ir_38','wv_63','wv_73','ir_87','ir_97']
             # ref_channels  = ['nir_13','nir_16']#,'nir_22','vis_04','vis_05','vis_06','vis_08','vis_09']
-            outfile         = os.path.join(DIR_OUT_RRAD, 
-                                           f"{sensing_time:%Y%m%d%H%M}_FCI-1C-RRAD-FDHSI.nc")
             scn.load(ir_channels, calibration='brightness_temperature', 
                      upper_right_corner='NE')
             # scn.load(ref_channels, calibration='reflectance', upper_right_corner='NE')
         
         elif "1C-RRAD-HRFI" in zip_file:  # High resolution only 4 channels available
-            files           = find_files_and_readers(base_dir=temp_dir, 
-                                                     reader='fci_l1c_nc')
-            scn     = Scene(filenames=files)
-            ir_channels     = ['ir_105'] # , 'ir_38']
-            # ref_channels  = ['nir_22','vis_06']
             outfile         = os.path.join(DIR_OUT_RRAD, 
                                            f"{sensing_time:%Y%m%d%H%M}_FCI-1C-RRAD-HRFI.nc")
+            files           = find_files_and_readers(base_dir=temp_dir, 
+                                                     reader='fci_l1c_nc')
+            scn             = Scene(filenames=files)
+            ir_channels     = ['ir_105'] # , 'ir_38']
+            # ref_channels  = ['nir_22','vis_06']
             scn.load(ir_channels, calibration='brightness_temperature', 
                      upper_right_corner='NE')
             # scn.load(ref_channels, calibration='reflectance', upper_right_corner='NE')
         
         # ── CLM (fixed decoder) ───────────────────────────────────────────
         elif "CLM" in zip_file:
+            outfile     = os.path.join(DIR_OUT_CLM,
+                                       f"{sensing_time:%Y%m%d%H%M}_FCI-2-CLM.nc")
             bin_files = [f for f in os.listdir(temp_dir) if f.endswith(".bin")]
             if not bin_files:
                 raise FileNotFoundError(
@@ -308,10 +253,8 @@ def process_zip(zip_file):
                 arr_native.reshape(original.shape),
                 chunks=original.data.chunks,
             )
-
             ir_channels = None
-            outfile     = os.path.join(DIR_OUT_CLM,
-                                       f"{sensing_time:%Y%m%d%H%M}_FCI-2-CLM.nc")
+            
 
         # ── Crop → resample → restructure → save ─────────────────────────
         scn             = scn.crop(ll_bbox=(lon_min, lat_min, lon_max, lat_max))
@@ -326,8 +269,6 @@ def process_zip(zip_file):
         del scn, ds, scn_resampled
         gc.collect()
         shutil.rmtree(temp_dir)
-
-        # print(f"Saved {outfile}")
 
     except Exception as e:
         import traceback
@@ -416,9 +357,9 @@ if __name__ == "__main__":
             ds.to_netcdf(outfile, 
                          encoding={"time": {"units": f"minutes since {t_ref}"}})
 
-        # # Remove the individual per-timestep files
-        # for f in files:
-        #     os.remove(os.path.join(out_dir, f))
+        # Remove the individual per-timestep files
+        for f in files:
+            os.remove(os.path.join(out_dir, f))
 
         print(f"Saved {outfile}")
 
