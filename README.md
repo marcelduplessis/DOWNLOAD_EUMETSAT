@@ -42,7 +42,7 @@ cp params_template.py params.py
 ```
 Edit `params.py` to set:
 - `consumer_key` / `consumer_secret` — from your [EUMETSAT API credentials](https://api.eumetsat.int/api-key/)
-- data directories (`raw_*`, `processed_*`) — wherever you want data stored on your machine
+- data directories (`raw_*`, `regridded_*`, `processed_*`) — wherever you want data stored on your machine
 
 ---
 
@@ -52,8 +52,8 @@ Run scripts in order:
 
 | Step | Script | Description |
 |------|--------|-------------|
-| 0 | `00_download_eumdac.py` | Download raw `.zip` files from EUMETSAT for a chosen collection and time window | Example: 1 full disk time step of normal resolution level 1C radiances (1 `.zip` file) can be anywhere between 2MB and 1GB and they are produced every 10min, so this can become quite large and downloading can take a while.
-| 1 | `01_check_raw_products_time_deltas.py` | Plot Δt between consecutive files to detect gaps or duplicates | Most of the time 10min, but some deviations exist.
+| 0 | `00_download_eumdac.py` | Download raw `.zip` files from EUMETSAT for a chosen collection and time window. |
+| 1 | `01_check_raw_products_time_deltas.py` | Plot Δt between consecutive files to detect gaps or duplicates (sanity check). |
 | 2 | `02_build_land_mask.py` | Build and save a land mask for the domain — **run once**, or when changing domain |
 | 3 | `031_regrid_RRAD_CLM_to_timeseries.py` | Unzip, crop, resample, and concatenate raw products into regional NetCDF time series |
 | 4 | `032_process_timeseries_for_goflow.py` | Combine radiance and CLM time series into a single file with BT, loggrad_T, mask, loggrad_T_masked |
@@ -76,9 +76,9 @@ Run scripts in order:
 | File | Description |
 |------|-------------|
 | `land_mask_<area>_0p02deg.nc` | Boolean land mask on the 0.02° grid |
-| `<t0>-<t1>_FCI-1C-RRAD_0p02deg.nc` | Regridded radiance time series |
-| `<t0>-<t1>_FCI-2-CLM_0p02deg.nc` | Regridded cloud mask time series |
-| `<t0>-<t1>_FCI-ir_105_0p02deg.nc` | Final dataset: BT, loggrad_T, mask, loggrad_T_masked |
+| `<t0>-<t1>_FCI-1C-RRAD_<resolution>>deg.nc` | Regridded radiance time series |
+| `<t0>-<t1>_FCI-2-CLM_<resolution>deg.nc` | Regridded cloud mask time series |
+| `<t0>-<t1>_FCI-<channel>_<resolution>deg.nc` | Final dataset: BT, loggrad_T, mask, loggrad_T_masked |
 
 Timestamps follow `YYYYMMDDhhmm` format. Area labels follow `<lon0>-<lon1>_<lat0>-<lat1>` convention.
 
@@ -88,3 +88,5 @@ Timestamps follow `YYYYMMDDhhmm` format. Area labels follow `<lon0>-<lon1>_<lat0
 - The RRAD `.nc` files use fci_l1c_nc reader to decode.
 - The CLM `.bin` files use GRIB2 `grid_second_order` packing that eccodes cannot reconstruct natively. The pipeline decodes the raw residuals directly via `clm = raw % 4`.
 - Land pixels are set to `NaN` in all output files using a Natural Earth 1:50m land mask.
+- 1 full disk time step of normal resolution level 1C radiances (1 `.zip` file) can be anywhere between 2MB and 1GB and they are produced every 10min, so this can become quite large and downloading can take a while.
+- EUMETVIEW (https://view.eumetsat.int/productviewer?v=default) can be useful to scan which time span is of interest.

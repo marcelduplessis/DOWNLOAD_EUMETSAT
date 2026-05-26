@@ -31,6 +31,8 @@ processed_data_dir_rrad_nr = DATA_DIR / "processed_RRAD_NR"
 processed_data_dir_rrad_hr = DATA_DIR / "processed_RRAD_HR"
 processed_data_dir_clm     = DATA_DIR / "processed_CLM"
 
+processed_goflow_inputs    = DATA_DIR / "processed_goflow_inputs"
+
 # ── Domain of interest ────────────────────────────────────────────────────────
 lon_min, lon_max =  10.0,  35.0
 lat_min, lat_max = -45.0, -30.0
