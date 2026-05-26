@@ -8,7 +8,8 @@ import requests
 from urllib3.exceptions import ProtocolError, IncompleteRead
 
 import eumdac
-from params import consumer_key, consumer_secret, raw_data_dir_rrad_nr, raw_data_dir_rrad_hr, raw_data_dir_clm
+from params import consumer_key, consumer_secret,\
+    raw_data_dir_rrad_nr, raw_data_dir_rrad_hr, raw_data_dir_clm
 
 # -----------------------------
 # TIME ZONE
@@ -79,7 +80,7 @@ datatailor = eumdac.DataTailor(token)
 # coll = 'EO:EUM:DAT:0662'    # MTG FCI NR
 coll = "EO:EUM:DAT:0665"    # MTG FCI HR
 # coll = 'EO:EUM:DAT:0800'    # MTG FCI CLM, cloud_mask, grib 
-# coll = 'EO:EUM:DAT:0678'    # MTG FCI CLS, cloud_state, netcdf 
+# coll = 'EO:EUM:DAT:0678'    # MTG FCI CLS, cloud_state, netcdf, pipeline not coded yet
 
 if coll == 'EO:EUM:DAT:0662':
     RAW_DIR = RAW_DIR_RRAD_NR
@@ -98,8 +99,8 @@ except Exception as error:
 # -----------------------------
 # SEARCH: SET DESIRED TIME SPAN
 # -----------------------------
-start = datetime.datetime(2025, 1, 1, 0, 0)
-end   = datetime.datetime(2025, 11, 10, 2, 0) #resuming from approximately the last downloaded file before server error
+start = datetime.datetime(2026, 1, 1, 0, 0)
+end   = datetime.datetime(2026, 3, 20, 18, 13) # when stoped, resume from the last downloaded file before server error
 
 products = selected_collection.search(dtstart=start, dtend=end)
 
@@ -111,7 +112,7 @@ MAX_RETRIES = 3
 
 for product in products:
 
-    # Get filename & expected size
+    # Get filename, expected size, and download status
     with product.open() as fsrc:
         filename = Path(fsrc.name).name
         expected_size = int(fsrc.headers.get("Content-Length", 0))

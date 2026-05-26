@@ -23,5 +23,5 @@ Thumbs.db
 
 # Data (optional)
 data/
-plots/
+figures/
 scripts/*.txt

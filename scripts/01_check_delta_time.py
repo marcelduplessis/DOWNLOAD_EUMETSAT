@@ -1,19 +1,21 @@
 from pathlib import Path
 import re
+import os
 from datetime import datetime
 import matplotlib.pyplot as plt
-from params import raw_data_dir_rrad, raw_data_dir_clm
+from params import raw_data_dir_rrad_nr, raw_data_dir_rrad_hr, raw_data_dir_clm
 
 # -----------------------------
 # PATH SETUP
 # -----------------------------
 RAW_DIRS = {
-    "RRAD": Path(raw_data_dir_rrad).expanduser().resolve(),
+    "RRAD_NR": Path(raw_data_dir_rrad_nr).expanduser().resolve(),
+    "RRAD_HR": Path(raw_data_dir_rrad_hr).expanduser().resolve(),
     "CLM": Path(raw_data_dir_clm).expanduser().resolve()
 }
 
 BASE_DIR = Path(__file__).resolve().parents[1]  # GOFLOW_LR root
-dirout = BASE_DIR / "plots"
+dirout = os.path.join(BASE_DIR, "figures")
 dirout.mkdir(parents=True, exist_ok=True)
 
 # -----------------------------
@@ -69,7 +71,7 @@ def plot_time_deltas(raw_dir: Path, label: str):
     plt.tight_layout()
 
     # Save figure
-    outfile = dirout / f"time_deltas_{label.lower()}.png"
+    outfile =  os.path.join(dirout, f"time_deltas_{label.lower()}.png")
     plt.savefig(outfile, dpi=300)
     plt.close()
     print(f"Saved plot for {label} to {outfile}")

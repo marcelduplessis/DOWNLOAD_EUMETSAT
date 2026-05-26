@@ -14,19 +14,24 @@ from params import raw_data_dir_rrad_nr, raw_data_dir_clm, \
 import time
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from tqdm import tqdm
 
 # -----------------------------
 # PATH SETUP
 # -----------------------------
-RAW_DIR_RRAD = raw_data_dir_rrad_nr
+RAW_DIR_RRAD = raw_data_dir_rrad_nr # raw_data_dir_rrad_hr #
 RAW_DIR_CLM = raw_data_dir_clm
 BASE_DIR = base_dir
 
 # -----------------------------
 # TIME WINDOW
 # -----------------------------
-t0 = datetime.strptime("20250126000000", "%Y%m%d%H%M%S")
-t1 = datetime.strptime("20250126010000", "%Y%m%d%H%M%S")
+YYYY0, MM0, DD0, HH0, MN0 = 2025, 2, 1, 0, 0
+YYYY1, MM1, DD1, HH1, MN1 = 2025, 2, 1, 1, 0
+t0 = datetime(YYYY0, MM0, DD0, HH0, MN0)
+t1 = datetime(YYYY1, MM1, DD1, HH1, MN1)
+# t0 = datetime.strptime("20250201000000", "%Y%m%d%H%M%S")
+# t1 = datetime.strptime("20250201010000", "%Y%m%d%H%M%S")
 
 # -----------------------------
 # AREA OF INTEREST
@@ -170,12 +175,20 @@ def process_zip(zip_file):
         # Unzip, load, crop, resample
         unzip_file(full_zip_path, temp_dir)
 
-        if "1C-RRAD" in zip_file:
+        if "1C-RRAD-FDHSI" in zip_file:  # Normal resolution, all 16 channels
+            files = find_files_and_readers(base_dir=temp_dir, reader='fci_l1c_nc')
+            scn = Scene(filenames=files)
+            ir_channels = ['ir_105'] # , 'ir_38']
+            # ref_channels = ['nir_22','vis_06']
+            outfile = os.path.join(DIR_OUT_RRAD, f"{sensing_time:%Y%m%d%H%M}_FCI-1C-RRAD-FDHSI.nc")
+            scn.load(ir_channels, calibration='brightness_temperature', upper_right_corner='NE')
+            # scn.load(ref_channels, calibration='reflectance', upper_right_corner='NE')
+        elif "1C-RRAD-HRFI" in zip_file:  # High resolution only 4 channels
             files = find_files_and_readers(base_dir=temp_dir, reader='fci_l1c_nc')
             scn = Scene(filenames=files)
             ir_channels = ['ir_105']#,'ir_123','ir_133','ir_38','wv_63','wv_73','ir_87','ir_97']
             # ref_channels = ['nir_13','nir_16']#,'nir_22','vis_04','vis_05','vis_06','vis_08','vis_09']
-            outfile = os.path.join(DIR_OUT_RRAD, f"{sensing_time:%Y%m%d%H%M}_FCI-1C-RRAD.nc")
+            outfile = os.path.join(DIR_OUT_RRAD, f"{sensing_time:%Y%m%d%H%M}_FCI-1C-RRAD-HRFI.nc")
             scn.load(ir_channels, calibration='brightness_temperature', upper_right_corner='NE')
             # scn.load(ref_channels, calibration='reflectance', upper_right_corner='NE')
         elif "CLM" in zip_file:
@@ -190,10 +203,8 @@ def process_zip(zip_file):
         scn_resampled = scn.resample(area_def)
         ds = scn_resampled.to_xarray().compute()
         
-        # restructure to (time, lat, lon) dimensions, and compute loggrad_BT of ir_channels
-        print("Resampling done. Restructuring...")
+        # # Restructure to (time, lat, lon) dimensions, and compute loggrad_BT of ir_channels
         ds = restructure_ds(ds, sensing_time, ir_channels=ir_channels if "1C-RRAD" in zip_file else None)
-        print("Restructuring done. Saving...")
         ds.to_netcdf(outfile)
 
         # Cleanup
@@ -201,7 +212,7 @@ def process_zip(zip_file):
         gc.collect()
         shutil.rmtree(temp_dir)
 
-        print(f"Saved {outfile}")
+        # print(f"Saved {outfile}")
 
     except Exception as e:
         import traceback
@@ -240,11 +251,11 @@ if __name__ == "__main__":
         return t0 <= datetime.strptime(match.group(1), "%Y%m%d%H%M%S") < t1
     zip_files_rrad = [f for f in os.listdir(RAW_DIR_RRAD) if f.endswith(".zip") and in_window(f)]
     zip_files_clm  = [f for f in os.listdir(RAW_DIR_CLM)  if f.endswith(".zip") and in_window(f)]
-    zip_files = zip_files_rrad + zip_files_clm
-        
+    zip_files =  zip_files_clm + zip_files_rrad
+    
     # Parallel processing
     start_time_perf = time.perf_counter()
-    MASK_PATH = os.path.join(BASE_DIR, f"land_mask_{area_label}.nc")
+    MASK_PATH = os.path.join(BASE_DIR, f"land_mask_{area_label}_0p02deg.nc")
     if not os.path.exists(MASK_PATH):
         raise FileNotFoundError(
             f"Land mask not found: {MASK_PATH}\n"
@@ -259,7 +270,7 @@ if __name__ == "__main__":
         initargs=(LAND_MASK,)        # fine at 938kB
     ) as executor:
         futures = [executor.submit(process_zip, zf) for zf in zip_files]
-        for future in as_completed(futures):
+        for future in tqdm(as_completed(futures), total=len(zip_files), desc="Processing zips"): #as_completed(futures):
             future.result()
     
     # with ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -269,15 +280,16 @@ if __name__ == "__main__":
 
     # ── CONCATENATION 
     for product, out_dir in [("FCI-1C-RRAD", DIR_OUT_RRAD), ("FCI-2-CLM", DIR_OUT_CLM)]:
-        files = sorted(f for f in os.listdir(out_dir) if f.endswith(".nc"))
+        # files = sorted(f for f in os.listdir(out_dir) if f.endswith(".nc"))
+        files = sorted(f for f in os.listdir(out_dir) if f.endswith(".nc") and not re.match(r"\d{12}-\d{12}_", f))
         if not files:
             continue
-        print(files)
+        # print(files)
         # Extract timestamps from filenames for the output name
         timestamps = [f[:12] for f in files]  # "YYYYMMDDHHMM"
         t_start = timestamps[0]
         t_end   = timestamps[-1]
-        outfile = os.path.join(out_dir, f"{t_start}-{t_end}_{product}.nc")
+        outfile = os.path.join(out_dir, f"{t_start}-{t_end}_{product}_0p02deg.nc")
 
         print(f"Concatenating {len(files)} files → {outfile}")
 
