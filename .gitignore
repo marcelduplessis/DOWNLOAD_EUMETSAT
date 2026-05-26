@@ -4,9 +4,6 @@ __pycache__/
 *.pyo
 scripts/params.py
 
-# Conda environment
-.venv/
-
 # Jupyter
 .ipynb_checkpoints
 
@@ -21,7 +18,8 @@ Thumbs.db
 # Logs
 *.log
 
-# Data (optional)
+# Data and figures
 data/
 figures/
-scripts/*.txt
+*.nc
+*.zip
