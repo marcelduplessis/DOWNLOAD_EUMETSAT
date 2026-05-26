@@ -1,4 +1,9 @@
-# Coded by Lucie Reymondet (Scripps-UCSD)
+"""
+Animates a regional timeseries, for a given IR channel, of brightness
+temperature and its log_grad, overlaid with cloud mask.
+
+Coded by Lucie Reymondet (Scripps-UCSD)
+"""
 
 # ----- Imports
 from pathlib import Path
@@ -11,7 +16,7 @@ from matplotlib import gridspec
 
 import cartopy.crs as ccrs
 
-from params import base_dir, processed_data_dir_rrad_nr,\
+from params import base_dir, processed_goflow_inputs,\
     lon_min, lon_max, lat_min, lat_max, resolution 
 # from calc_vector_grad import UVgrad
 from plot_utils import plt_args, format_axes, add_box
@@ -19,7 +24,8 @@ from plot_utils import plt_args, format_axes, add_box
 # --------------------------------
 #  Initialization
 # --------------------------------
-channel = "ir_105"
+# channel = "ir_105"
+channel = "ir_123"
 VARS = ["BT", "loggrad_T", "loggrad_T_masked"]#, "vort", "div"] #
 
 # ----- Plotting parameters
@@ -48,7 +54,7 @@ def fmt_lat(v):
 
 area_label = f"{fmt_lon(lon_min)}-{fmt_lon(lon_max)}_{fmt_lat(lat_min)}-{fmt_lat(lat_max)}"
 
-DIR_IN = os.path.join(processed_data_dir_rrad_nr, area_label)
+DIR_IN = os.path.join(processed_goflow_inputs, area_label)
 
 base_dir = Path(__file__).resolve().parent.parent
 DIR_OUT = os.path.join(base_dir, "figures")
@@ -223,7 +229,7 @@ anim = animation.FuncAnimation(
 # -----------------------------
 # SAVE
 # -----------------------------
-outfile = os.path.join(dirout, f"{channel}_snapshot_animation.mp4")
+outfile = os.path.join(DIR_OUT, f"{channel}_snapshot_animation.mp4")
 writer = animation.FFMpegWriter(fps=5, bitrate=1800,
                                 extra_args=['-vcodec', 'libx264', '-pix_fmt', 'yuv420p'])
 anim.save(outfile, writer=writer, dpi=300)

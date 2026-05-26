@@ -2,6 +2,7 @@ import cmocean.cm as cmo
 from matplotlib.ticker import MultipleLocator
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 from matplotlib.patches import Rectangle
+import cartopy.crs as ccrs
 
 parameters = {
     # Axis label 

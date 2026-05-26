@@ -6,8 +6,8 @@ import shutil
 import time
 import requests
 from urllib3.exceptions import ProtocolError, IncompleteRead
-
 import eumdac
+
 from params import consumer_key, consumer_secret,\
     raw_data_dir_rrad_nr, raw_data_dir_rrad_hr, raw_data_dir_clm
 
@@ -100,7 +100,9 @@ except Exception as error:
 # SEARCH: SET DESIRED TIME SPAN
 # -----------------------------
 start = datetime.datetime(2026, 1, 1, 0, 0)
-end   = datetime.datetime(2026, 3, 20, 18, 13) # when stoped, resume from the last downloaded file before server error
+end   = datetime.datetime(2026, 3, 20, 18, 13) 
+# download starts from most recent products (closest to end) to oldest (closest to start) 
+# if download is interrupted, resume from the last downloaded file before server error
 
 products = selected_collection.search(dtstart=start, dtend=end)
 

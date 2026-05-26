@@ -1,8 +1,8 @@
 """
-Reads the regridded FCI radiance and cloud-mask time-series files and
-produces a single NetCDF with four variables:
+Read the regridded FCI radiance and cloud-mask time-series files and,
+for a given IR channel, produce a single NetCDF with four variables:
 
-    BT              – ir_105 brightness temperature (K), float32
+    BT              – {channel} brightness temperature (K), float32
     loggrad_T       – log10 of horizontal gradient magnitude of BT, float32
     mask            – cloud/clear/nodata flag, float32
                         CLM 0 or 1 (clear water / clear land) → 1
@@ -11,6 +11,8 @@ produces a single NetCDF with four variables:
     loggrad_T_masked – loggrad_T set to NaN where mask == 0 (cloudy)
 
 Output file: <t_start>-<t_end>_FCI-{channel}_0p02deg.nc
+
+Coded by Lucie Reymondet (Scripps-UCSD)
 """
 
 import os
@@ -19,12 +21,18 @@ import glob
 import numpy as np
 import xarray as xr
 
-from params import processed_data_dir_rrad_nr, processed_data_dir_clm, \
+from params import regridded_data_dir_rrad_nr, regridded_data_dir_clm, processed_goflow_inputs, \
     lon_min, lon_max, lat_min, lat_max, resolution 
 
-# -----------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# CHANNEL CONFIGURATION
+# ─────────────────────────────────────────────────────────────────────────────
+# channel = "ir_105"
+channel = "ir_123"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # AREA-DERIVED DIRS
-# -----------------------------
+# ─────────────────────────────────────────────────────────────────────────────
 def fmt_lon(v):
     return f"{abs(v):.0f}{'E' if v >= 0 else 'W'}"
 
@@ -33,9 +41,9 @@ def fmt_lat(v):
 
 area_label = f"{fmt_lon(lon_min)}-{fmt_lon(lon_max)}_{fmt_lat(lat_min)}-{fmt_lat(lat_max)}"
 
-DIR_RRAD = os.path.join(processed_data_dir_rrad_nr, area_label)
-DIR_CLM  = os.path.join(processed_data_dir_clm,     area_label)
-DIR_OUT  = DIR_RRAD
+DIR_RRAD = os.path.join(regridded_data_dir_rrad_nr, area_label)
+DIR_CLM  = os.path.join(regridded_data_dir_clm,     area_label)
+DIR_OUT  = os.path.join(processed_goflow_inputs,    area_label)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
@@ -80,9 +88,9 @@ def compute_loggrad(bt_2d: xr.DataArray, eps: float = 1e-12) -> xr.DataArray:
     log_grad = np.log10(gradT + eps).astype(np.float32)
 
     log_grad.attrs.update(
-        long_name  = "Log10 horizontal gradient magnitude of ir_105 brightness temperature",
+        long_name  = f"Log10 horizontal gradient magnitude of {channel} brightness temperature",
         units      = "log10(K/m)",
-        source_channel      = "ir_105",
+        source_channel      = f"{channel}",
         source_calibration  = "brightness_temperature",
         gradient_method     = ("central differences via xarray.differentiate, "
                                "spherical metric correction"),
@@ -138,22 +146,22 @@ def main():
     basename    = os.path.basename(rrad_path)          # e.g. 202502010000-202502010050_FCI-1C-RRAD_0p02deg.nc
     time_prefix = basename.split("_")[0]               # "202502010000-202502010050"
     outfile     = os.path.join(DIR_OUT,
-                               f"{time_prefix}_FCI-ir_105_{str(resolution).replace('.', 'p')}deg.nc")
+                               f"{time_prefix}_FCI-{channel}_{str(resolution).replace('.', 'p')}deg.nc")
 
     # ── 2. Load data ──────────────────────────────────────────────────────
     print("Loading datasets …")
     ds_rrad = xr.open_dataset(rrad_path)
     ds_clm  = xr.open_dataset(clm_path)
 
-    bt  = ds_rrad["ir_105"]          # (time, lat, lon) float32, land=NaN
+    bt  = ds_rrad[channel]          # (time, lat, lon) float32, land=NaN
     clm = ds_clm["cloud_mask"]       # (time, lat, lon) float32, land=NaN
 
     # ── 3. BT ─────────────────────────────────────────────────────────────
     bt = bt.astype(np.float32)
     bt.attrs.update(
-        long_name  = "ir_105 brightness temperature",
+        long_name  = f"{channel} brightness temperature",
         units      = "K",
-        source     = "FCI L1C RRAD FDHSI, channel ir_105, calibration=brightness_temperature",
+        source     = f"FCI L1C RRAD FDHSI, channel {channel}, calibration=brightness_temperature",
     )
 
     # ── 4. loggrad_T (computed time-step by time-step to keep memory low) ─
@@ -177,7 +185,7 @@ def main():
     loggrad_T_masked = loggrad_T.where(mask != 0.0)
     loggrad_T_masked = loggrad_T_masked.astype(np.float32)
     loggrad_T_masked.attrs.update(
-        long_name = ("Log10 horizontal gradient magnitude of ir_105 BT, "
+        long_name = (f"Log10 horizontal gradient magnitude of {channel} BT, "
                      "masked to NaN where cloudy (mask=0); "
                      "no-data pixels (mask=NaN) left as NaN but not explicitly masked"),
         units     = "log10(K/m)",
@@ -202,7 +210,7 @@ def main():
     # Clean up any inherited land-mask global attribute
     # ds_out.attrs.pop("land_mask", None)
     ds_out.attrs.update(
-        title     = "FCI ir_105 brightness temperature, gradient, and cloud mask",
+        title     = f"FCI {channel} brightness temperature, gradient, and cloud mask",
         source    = (f"RRAD: {os.path.basename(rrad_path)}; "
                      f"CLM: {os.path.basename(clm_path)}"),
         Conventions = "CF-1.8",

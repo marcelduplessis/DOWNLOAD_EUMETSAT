@@ -1,3 +1,13 @@
+"""
+Read the raw FCI radiance and cloud-mask full disk zip files and
+unzip, crop, resample, and concatenate into regional NetCDF time series, 
+spanning between t0 (start) and t1 (end).
+
+Output: f"{t0}-{t1}_{product}_{str(resolution).replace('.', 'p')}deg.nc"
+    - product (FCI-1C-RRAD or FCI-2-CLM) is inherited from regridded .nc file names
+    - resolution is inherited from n params.py
+"""
+
 from zipfile import ZipFile
 import re
 import os
@@ -26,7 +36,7 @@ warnings.filterwarnings(
 )
 
 from params import raw_data_dir_rrad_nr, raw_data_dir_clm, \
-    base_dir, processed_data_dir_rrad_nr, processed_data_dir_clm, \
+    base_dir, regridded_data_dir_rrad_nr, regridded_data_dir_clm, \
     lon_min, lon_max, lat_min, lat_max, resolution 
 
 # -----------------------------
@@ -65,8 +75,8 @@ def fmt_lat(v):
 
 area_label = f"{fmt_lon(lon_min)}-{fmt_lon(lon_max)}_{fmt_lat(lat_min)}-{fmt_lat(lat_max)}"
 
-DIR_OUT_RRAD = os.path.join(processed_data_dir_rrad_nr, area_label)
-DIR_OUT_CLM  = os.path.join(processed_data_dir_clm,     area_label)
+DIR_OUT_RRAD = os.path.join(regridded_data_dir_rrad_nr, area_label)
+DIR_OUT_CLM  = os.path.join(regridded_data_dir_clm,     area_label)
 
 # -----------------------------
 # CLM DECODE
@@ -212,7 +222,7 @@ def process_zip(zip_file):
             files           = find_files_and_readers(base_dir=temp_dir,
                                                       reader='fci_l1c_nc')
             scn             = Scene(filenames=files)
-            ir_channels     = ['ir_105']#,'ir_123','ir_133','ir_38','wv_63','wv_73','ir_87','ir_97']
+            ir_channels     = ['ir_105','ir_123']#,'ir_133','ir_38','wv_63','wv_73','ir_87','ir_97']
             # ref_channels  = ['nir_13','nir_16']#,'nir_22','vis_04','vis_05','vis_06','vis_08','vis_09']
             scn.load(ir_channels, calibration='brightness_temperature', 
                      upper_right_corner='NE')
