@@ -52,7 +52,7 @@ Run scripts in order:
 
 | Step | Script | Description |
 |------|--------|-------------|
-| 0 | `00_download_eumdac.py` | Download raw `.zip` files from EUMETSAT for a chosen collection and time window. Example: 1 full disk time step of normal resolution level 1C radiances (1 `.zip` file) can be anywhere between 2MB and 1GB and they are produced every 10min, so this can become quite large and downloading can take a while. |
+| 0 | `00_download_eumdac.py` | Download raw `.zip` files from EUMETSAT for a chosen collection and time window. |
 | 1 | `01_check_raw_products_time_deltas.py` | Plot Δt between consecutive files to detect gaps or duplicates (sanity check). |
 | 2 | `02_build_land_mask.py` | Build and save a land mask for the domain — **run once**, or when changing domain |
 | 3 | `031_regrid_RRAD_CLM_to_timeseries.py` | Unzip, crop, resample, and concatenate raw products into regional NetCDF time series |
@@ -88,3 +88,5 @@ Timestamps follow `YYYYMMDDhhmm` format. Area labels follow `<lon0>-<lon1>_<lat0
 - The RRAD `.nc` files use fci_l1c_nc reader to decode.
 - The CLM `.bin` files use GRIB2 `grid_second_order` packing that eccodes cannot reconstruct natively. The pipeline decodes the raw residuals directly via `clm = raw % 4`.
 - Land pixels are set to `NaN` in all output files using a Natural Earth 1:50m land mask.
+- 1 full disk time step of normal resolution level 1C radiances (1 `.zip` file) can be anywhere between 2MB and 1GB and they are produced every 10min, so this can become quite large and downloading can take a while.
+- EUMETVIEW (https://view.eumetsat.int/productviewer?v=default) can be useful to scan which time span is of interest.
