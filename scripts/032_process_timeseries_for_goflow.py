@@ -1,7 +1,5 @@
 """
-build_ir105_dataset.py
-──────────────────────
-Reads the pre-processed FCI radiance and cloud-mask time-series files and
+Reads the regridded FCI radiance and cloud-mask time-series files and
 produces a single NetCDF with four variables:
 
     BT              – ir_105 brightness temperature (K), float32
@@ -12,7 +10,7 @@ produces a single NetCDF with four variables:
                         CLM 3      (no data)                  → NaN
     loggrad_T_masked – loggrad_T set to NaN where mask == 0 (cloudy)
 
-Output file: <t_start>-<t_end>_FCI-ir_105_0p02deg.nc
+Output file: <t_start>-<t_end>_FCI-{channel}_0p02deg.nc
 """
 
 import os
@@ -21,12 +19,23 @@ import glob
 import numpy as np
 import xarray as xr
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CONFIGURATION  –  adjust these two directories to match your setup
-# ─────────────────────────────────────────────────────────────────────────────
-DIR_RRAD = r"D:\EUMETSAT_data\processed_RRAD_NR\10E-35E_45S-30S"
-DIR_CLM  = r"D:\EUMETSAT_data\processed_CLM\10E-35E_45S-30S"
-DIR_OUT  = DIR_RRAD   # write the output alongside the radiance data
+from params import processed_data_dir_rrad_nr, processed_data_dir_clm, \
+    lon_min, lon_max, lat_min, lat_max, resolution 
+
+# -----------------------------
+# AREA-DERIVED DIRS
+# -----------------------------
+def fmt_lon(v):
+    return f"{abs(v):.0f}{'E' if v >= 0 else 'W'}"
+
+def fmt_lat(v):
+    return f"{abs(v):.0f}{'N' if v >= 0 else 'S'}"
+
+area_label = f"{fmt_lon(lon_min)}-{fmt_lon(lon_max)}_{fmt_lat(lat_min)}-{fmt_lat(lat_max)}"
+
+DIR_RRAD = os.path.join(processed_data_dir_rrad_nr, area_label)
+DIR_CLM  = os.path.join(processed_data_dir_clm,     area_label)
+DIR_OUT  = DIR_RRAD
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
@@ -129,7 +138,7 @@ def main():
     basename    = os.path.basename(rrad_path)          # e.g. 202502010000-202502010050_FCI-1C-RRAD_0p02deg.nc
     time_prefix = basename.split("_")[0]               # "202502010000-202502010050"
     outfile     = os.path.join(DIR_OUT,
-                               f"{time_prefix}_FCI-ir_105_0p02deg.nc")
+                               f"{time_prefix}_FCI-ir_105_{str(resolution).replace('.', 'p')}deg.nc")
 
     # ── 2. Load data ──────────────────────────────────────────────────────
     print("Loading datasets …")

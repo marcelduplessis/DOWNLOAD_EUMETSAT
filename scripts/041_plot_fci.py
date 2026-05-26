@@ -8,67 +8,16 @@ import os
 import matplotlib.pyplot as plt
 
 from matplotlib import gridspec
-from matplotlib.ticker import MultipleLocator
-from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
-from matplotlib.patches import Rectangle
 
 import cartopy.crs as ccrs
-import cmocean.cm as cmo
 
+from params import base_dir, processed_data_dir_rrad_nr,\
+    lon_min, lon_max, lat_min, lat_max, resolution 
 # from calc_vector_grad import UVgrad
+from plot_utils import plt_args, format_axes, add_box
 
 # --------------------------------
-# --------------- Helper functions
-# --------------------------------
-
-def plt_args(VAR):
-    """Return vmin, vmax, extend, units, title, cmap, scale, gridline_color"""
-    args = {
-        "BT":               [2, 22, 'both', r'$^{\circ}$C', 'BT',              cmo.thermal, 1, 'white'],
-        "loggrad_T":        [-6,-3, 'both', '1',          r'log($\nabla$BT)',"viridis",    1, 'white'],
-        "loggrad_T_masked": [-6,-3, 'both', '1',          r'log($\nabla$BT)',"viridis",    1, 'white'],
-        "V":                [-1,1,  'both', r'm s$^{-1}$',  'V$_{10m}$',        cmo.balance, 1, 'darkgrey'],
-        "U":                [-1,1,  'both', r'm s$^{-1}$',  'U$_{10m}$',        cmo.balance, 1, 'darkgrey'],
-        "Eta":              [-2,2,  'both', r'm',           r'$\eta$',          cmo.balance, 1, 'darkgrey'],
-        "vort":             [-1,1,  'both', r'1',           r'$\zeta$/f',       cmo.balance, 1, 'k'],
-        "div":              [-1,1,  'both', r'1',           r'$\delta$/f',      cmo.balance, 1, 'k'],
-    }
-    if VAR not in args:
-        raise ValueError("Invalid variable")
-    return args[VAR]
-
-
-def format_axes(axis, r, c):
-    """Format axes, labels, gridlines, title..."""
-    gl = axis.gridlines(crs=ccrs.PlateCarree(),
-                    draw_labels=True,
-                    linewidth=0.8, color='gray',
-                    alpha=0.5, linestyle='--')
-    gl.xformatter = LongitudeFormatter()
-    gl.yformatter = LatitudeFormatter()
-    gl.xlocator = MultipleLocator(5)
-    gl.ylocator = MultipleLocator(5)
-    gl.xpadding = 1
-    gl.ypadding = 2
-    gl.xlabel_style = {'size': 3}
-    gl.ylabel_style = {'size': 3}
-    gl.top_labels,gl.bottom_labels = True, True 
-
-def add_box(ax, inds, lon, lat, color, label=None, lw=0.5):
-    """inds = (y0, y1, x0, x1)"""
-    y0, y1, x0, x1 = inds
-    lon0, lon1 = lon[x0], lon[x1 - 1]
-    lat0, lat1 = lat[y0], lat[y1 - 1]
-    rect = Rectangle(
-        (lon0, lat0), lon1 - lon0, lat1 - lat0,
-        linewidth=lw, edgecolor=color, facecolor='none',
-        linestyle='-', transform=ccrs.PlateCarree(),
-        label=label, zorder=10
-    )
-    ax.add_patch(rect)
-
-# --------------------------------
-# ----------------- Initialization
+#  Initialization
 # --------------------------------
 channel = "ir_105"
 VARS = ["BT", "loggrad_T", "loggrad_T_masked"]#, "vort", "div"] #
@@ -79,7 +28,7 @@ cbar_ticksize = 6
 insert_fontsize = 8
 letter_box_size = 8
 letter_size = 6
-from plot_parameters import parameters
+from plot_utils import parameters
 plt.rcParams.update(parameters)
 
 alpha = 20
@@ -88,14 +37,27 @@ quiverwidth = 0.001
 headwidth = 3
 wind_scale = 10 * 110e3  # 10°
 
-# ----- Directories
-dirin = Path(r"D:\EUMETSAT_data\processed_RRAD_NR\10E-35E_45S-30S")
-base_dir = Path(__file__).resolve().parent.parent
-dirout = os.path.join(base_dir, "figures")
-os.makedirs(dirout, exist_ok=True)
+# -----------------------------
+# AREA-DERIVED DIRS
+# -----------------------------
+def fmt_lon(v):
+    return f"{abs(v):.0f}{'E' if v >= 0 else 'W'}"
 
-# ---- Data
-ds = xr.open_dataset(os.path.join(dirin,f"202502010000-202502010050_FCI-{channel}_0p02deg.nc"))
+def fmt_lat(v):
+    return f"{abs(v):.0f}{'N' if v >= 0 else 'S'}"
+
+area_label = f"{fmt_lon(lon_min)}-{fmt_lon(lon_max)}_{fmt_lat(lat_min)}-{fmt_lat(lat_max)}"
+
+DIR_IN = os.path.join(processed_data_dir_rrad_nr, area_label)
+
+base_dir = Path(__file__).resolve().parent.parent
+DIR_OUT = os.path.join(base_dir, "figures")
+os.makedirs(DIR_OUT, exist_ok=True)
+
+# -----------------------------
+# DATA
+# -----------------------------
+ds = xr.open_dataset(os.path.join(DIR_IN,f"202502010000-202502010050_FCI-{channel}_{str(resolution).replace('.', 'p')}deg.nc"))
 # u_da = ds["U"]
 # v_da = ds["V"]
 # _, div, vort, _ = UVgrad(u_da, v_da)
@@ -129,7 +91,9 @@ valid_inds = tuple(
     a + b for a, b in zip((0, 512, Nx - 768, Nx), ll_corner)
 )
 
-# ----- Set up figure
+# -----------------------------
+# PLOT
+# -----------------------------
 ncols = 2
 nrows = 2
 widths = np.ones(ncols)
@@ -162,7 +126,7 @@ for v, variable in enumerate(VARS):
                  horizontalalignment='center', verticalalignment='center',
                  transform=ax.transAxes)
 
-# Train / test boxes on panel a
+# ----- Train / test boxes on panel a
 for inds in train_inds:
     add_box(axs_map[0], inds, lon, lat, 'cyan')
 for inds in test_inds:
@@ -221,6 +185,8 @@ for v, variable in enumerate(VARS):
 
 
 
-# ----- Save
+# -----------------------------
+# SAVE
+# -----------------------------
 outfile = f"{channel}_snapshot.png"
-fig.savefig(os.path.join(dirout,outfile),bbox_inches="tight")
+fig.savefig(os.path.join(DIR_OUT,outfile),bbox_inches="tight")

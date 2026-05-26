@@ -9,8 +9,6 @@ import xarray as xr
 import numpy as np
 import shutil
 import gc
-from params import raw_data_dir_rrad_nr, raw_data_dir_clm, \
-    base_dir, processed_data_dir_rrad_nr, processed_data_dir_clm
 import time
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -26,6 +24,10 @@ warnings.filterwarnings(
     category=UserWarning,
     module="pyproj",
 )
+
+from params import raw_data_dir_rrad_nr, raw_data_dir_clm, \
+    base_dir, processed_data_dir_rrad_nr, processed_data_dir_clm, \
+    lon_min, lon_max, lat_min, lat_max, resolution 
 
 # -----------------------------
 # PATH SETUP
@@ -45,13 +47,10 @@ t1 = datetime(YYYY1, MM1, DD1, HH1, MN1)
 # -----------------------------
 # AREA OF INTEREST
 # -----------------------------
-lon_min, lon_max = 10.0, 35.0
-lat_min, lat_max = -45.0, -30.0 # 30.0, 45.0
-
 area_def = create_area_def(
     area_id="geo_area",
     projection={"proj": "latlong", "datum": "WGS84"},
-    resolution=(0.02, 0.02),
+    resolution=(resolution, resolution),
     area_extent=(lon_min, lat_min, lon_max, lat_max),
 )
 
@@ -306,7 +305,7 @@ if __name__ == "__main__":
     zip_files =  zip_files_clm + zip_files_rrad
     
     MASK_PATH = os.path.join(BASE_DIR,
-                              f"land_mask_{area_label}_0p02deg.nc")
+                              f"land_mask_{area_label}_{str(resolution).replace('.', 'p')}deg.nc")
     if not os.path.exists(MASK_PATH):
         raise FileNotFoundError(
             f"Land mask not found: {MASK_PATH}\n"
@@ -342,7 +341,7 @@ if __name__ == "__main__":
         t_start = timestamps[0]
         t_end   = timestamps[-1]
         outfile = os.path.join(out_dir, 
-                               f"{t_start}-{t_end}_{product}_0p02deg.nc")
+                               f"{t_start}-{t_end}_{product}_{str(resolution).replace('.', 'p')}deg.nc")
 
         print(f"Concatenating {len(files)} files → {outfile}")
 
