@@ -24,8 +24,8 @@ from plot_utils import plt_args, format_axes, add_box
 # --------------------------------
 #  Initialization
 # --------------------------------
-# channel = "ir_105"
-channel = "ir_123"
+channel = "ir_105"
+# channel = "ir_123"
 VARS = ["BT", "loggrad_T", "loggrad_T_masked"]#, "vort", "div"] #
 
 # ----- Plotting parameters
@@ -44,7 +44,7 @@ headwidth = 3
 wind_scale = 10 * 110e3  # 10°
 
 # -----------------------------
-# AREA-DERIVED DIRS
+# DIRECTORIES
 # -----------------------------
 def fmt_lon(v):
     return f"{abs(v):.0f}{'E' if v >= 0 else 'W'}"

@@ -35,22 +35,15 @@ warnings.filterwarnings(
     module="pyproj",
 )
 
-from params import raw_data_dir_rrad_nr, raw_data_dir_clm, \
-    base_dir, regridded_data_dir_rrad_nr, regridded_data_dir_clm, \
+from params import raw_data_dir_rrad_nr, raw_data_dir_rrad_hr, raw_data_dir_clm, \
+    base_dir, regridded_data_dir_rrad_nr, regridded_data_dir_rrad_hr, regridded_data_dir_clm, \
     lon_min, lon_max, lat_min, lat_max, resolution 
-
-# -----------------------------
-# PATH SETUP
-# -----------------------------
-RAW_DIR_RRAD = raw_data_dir_rrad_nr # raw_data_dir_rrad_hr #
-RAW_DIR_CLM = raw_data_dir_clm
-BASE_DIR = base_dir
 
 # -----------------------------
 # TIME WINDOW
 # -----------------------------
-YYYY0, MM0, DD0, HH0, MN0 = 2025, 2, 1, 0, 0
-YYYY1, MM1, DD1, HH1, MN1 = 2025, 2, 1, 1, 0
+YYYY0, MM0, DD0, HH0, MN0 = 2026, 3, 28, 0, 0
+YYYY1, MM1, DD1, HH1, MN1 = 2026, 3, 28, 1, 0
 t0 = datetime(YYYY0, MM0, DD0, HH0, MN0)
 t1 = datetime(YYYY1, MM1, DD1, HH1, MN1)
 
@@ -65,7 +58,7 @@ area_def = create_area_def(
 )
 
 # -----------------------------
-# AREA-DERIVED OUTPUT DIRS
+# DIRECTORIES
 # -----------------------------
 def fmt_lon(v):
     return f"{abs(v):.0f}{'E' if v >= 0 else 'W'}"
@@ -75,7 +68,10 @@ def fmt_lat(v):
 
 area_label = f"{fmt_lon(lon_min)}-{fmt_lon(lon_max)}_{fmt_lat(lat_min)}-{fmt_lat(lat_max)}"
 
-DIR_OUT_RRAD = os.path.join(regridded_data_dir_rrad_nr, area_label)
+RAW_DIR_RRAD = raw_data_dir_rrad_hr # or raw_data_dir_rrad_nr # 
+RAW_DIR_CLM = raw_data_dir_clm
+BASE_DIR = base_dir
+DIR_OUT_RRAD = os.path.join(regridded_data_dir_rrad_hr, area_label) # or raw_data_dir_rrad_nr #
 DIR_OUT_CLM  = os.path.join(regridded_data_dir_clm,     area_label)
 
 # -----------------------------

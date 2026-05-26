@@ -21,17 +21,18 @@ import glob
 import numpy as np
 import xarray as xr
 
-from params import regridded_data_dir_rrad_nr, regridded_data_dir_clm, processed_goflow_inputs, \
+from params import regridded_data_dir_rrad_nr, regridded_data_dir_rrad_hr, \
+    regridded_data_dir_clm, processed_goflow_inputs, \
     lon_min, lon_max, lat_min, lat_max, resolution 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CHANNEL CONFIGURATION
 # ─────────────────────────────────────────────────────────────────────────────
-# channel = "ir_105"
-channel = "ir_123"
+channel = "ir_105"
+# channel = "ir_123"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AREA-DERIVED DIRS
+# DIRECTORIES
 # ─────────────────────────────────────────────────────────────────────────────
 def fmt_lon(v):
     return f"{abs(v):.0f}{'E' if v >= 0 else 'W'}"
@@ -41,7 +42,7 @@ def fmt_lat(v):
 
 area_label = f"{fmt_lon(lon_min)}-{fmt_lon(lon_max)}_{fmt_lat(lat_min)}-{fmt_lat(lat_max)}"
 
-DIR_RRAD = os.path.join(regridded_data_dir_rrad_nr, area_label)
+DIR_RRAD = os.path.join(regridded_data_dir_rrad_hr, area_label) # or regridded_data_dir_rrad_nr
 DIR_CLM  = os.path.join(regridded_data_dir_clm,     area_label)
 DIR_OUT  = os.path.join(processed_goflow_inputs,    area_label)
 
