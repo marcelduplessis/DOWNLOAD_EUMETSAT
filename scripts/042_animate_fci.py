@@ -8,6 +8,7 @@ Coded by Lucie Reymondet (Scripps-UCSD)
 # ----- Imports
 from pathlib import Path
 import numpy as np
+import pandas as pd
 import xarray as xr
 import os
 import matplotlib.pyplot as plt
@@ -63,14 +64,15 @@ os.makedirs(DIR_OUT, exist_ok=True)
 # -----------------------------
 # DATA
 # -----------------------------
-ds = xr.open_dataset(os.path.join(DIR_IN,f"202502010000-202502010050_FCI-{channel}_{str(resolution).replace('.', 'p')}deg.nc"))
+ds = xr.open_dataset(os.path.join(DIR_IN,f"202603280000-202603312250_FCI-{channel}_{str(resolution).replace('.', 'p')}deg.nc"))
 # u_da = ds["U"]
 # v_da = ds["V"]
 # _, div, vort, _ = UVgrad(u_da, v_da)
 # ds["vort"] = vort
 # ds["div"] = div
 
-n_times = ds.sizes["time"]
+times = ds.time.values
+n_times = 60
 
 # ----- Domain
 lon, lat = ds['lon'].values, ds['lat'].values
@@ -186,7 +188,7 @@ for v, variable in enumerate(VARS):
 # qt.set_zorder(3)
 
 # # ----- Time label (top of figure)
-time_text = axs_map[1].text(0.5, 1.08, f'Time step: 0 / {n_times - 1}',
+time_text = axs_map[1].text(0.5, 1.08, pd.to_datetime(times[0]).strftime("%Y-%m-%d %H:%M"),
                              ha='center', va='bottom', fontsize=7, weight='bold',
                              transform=axs_map[1].transAxes)
 
@@ -211,7 +213,7 @@ def update(frame):
     # qp[0].set_UVC(u_qv, v_qv)
 
     # Update time label
-    time_text.set_text(f'Time step: {frame} / {n_times - 1}')
+    time_text.set_text(pd.to_datetime(times[frame]).strftime("%Y-%m-%d %H:%M"))
 
     return meshes + [time_text] #+ [qp[0]] 
 

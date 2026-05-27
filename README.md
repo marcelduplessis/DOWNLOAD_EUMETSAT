@@ -15,13 +15,13 @@ Downloads, reprojects, and visualises MTG FCI full-disk products (radiances and 
 │   ├── 031_regrid_RRAD_CLM_to_timeseries.py# Regrid raw zips → per-channel NetCDF time series
 │   ├── 032_process_timeseries_for_goflow.py# Compute BT, loggrad, cloud mask → final NetCDF
 │   ├── 041_plot_fci.py                     # Static snapshot figure
-│   └── 042_animate_fci.py                  # MP4 animation
+│   ├── 042_animate_fci.py                  # MP4 animation
+│   ├── plot_utils.py                       # Shared matplotlib rcParams
+│   ├── params.py                           # Local config — NOT tracked (see below)
+│   └── params_template.py                  # Template to create your params.py
 ├── env/
 │   └── satpy-env.yml                       # Conda environment
 ├── figures/                                # Output figures (NOT tracked)
-├── params.py                               # Local config — NOT tracked (see below)
-├── params_template.py                      # Template to create your params.py
-├── plot_utils.py                           # Shared matplotlib rcParams
 └── README.md
 ```
 

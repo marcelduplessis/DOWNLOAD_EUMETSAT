@@ -8,6 +8,7 @@ Coded by Lucie Reymondet (Scripps-UCSD)
 # ----- Imports
 from pathlib import Path
 import numpy as np
+import pandas as pd
 import xarray as xr
 import os
 import matplotlib.pyplot as plt
@@ -63,13 +64,14 @@ os.makedirs(DIR_OUT, exist_ok=True)
 # -----------------------------
 # DATA
 # -----------------------------
-ds = xr.open_dataset(os.path.join(DIR_IN,f"202502010000-202502010050_FCI-{channel}_{str(resolution).replace('.', 'p')}deg.nc"))
+ds = xr.open_dataset(os.path.join(DIR_IN,f"202603280000-202603312250_FCI-{channel}_{str(resolution).replace('.', 'p')}deg.nc"))
 # u_da = ds["U"]
 # v_da = ds["V"]
 # _, div, vort, _ = UVgrad(u_da, v_da)
 # ds["vort"] = vort
 # ds["div"] = div
 
+times = ds.time.values
 
 
 # ----- Domain
@@ -186,8 +188,8 @@ for v, variable in enumerate(VARS):
 # qt.set_zorder(3)
 
 # ----- Time label (top of figure)
-# time_text = fig.text(0.5, 0.98, f'Time step: 0 / {n_times - 1}',
-#                      ha='center', va='top', fontsize=8, weight='bold')
+time_text = fig.text(0.5, 0.98, pd.to_datetime(times[0]).strftime("%Y-%m-%d %H:%M"),
+                     ha='center', va='top', fontsize=8, weight='bold')
 
 
 

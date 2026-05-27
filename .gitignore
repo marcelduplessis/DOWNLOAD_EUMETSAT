@@ -18,8 +18,9 @@ Thumbs.db
 # Logs
 *.log
 
-# Data and figures
+# Data, figures and jupyter notebooks
 data/
 figures/
+notebooks/
 *.nc
 *.zip
