@@ -89,4 +89,5 @@ Timestamps follow `YYYYMMDDhhmm` format. Area labels follow `<lon0>-<lon1>_<lat0
 - The CLM `.bin` files use GRIB2 `grid_second_order` packing that eccodes cannot reconstruct natively. The pipeline decodes the raw residuals directly via `clm = raw % 4`.
 - Land pixels are set to `NaN` in all output files using a Natural Earth 1:50m land mask.
 - 1 full disk time step of normal resolution level 1C radiances (1 `.zip` file) can be anywhere between 2MB and 1GB and they are produced every 10min, so this can become quite large and downloading can take a while.
+- Resources about MTG products can be found in the user guides at https://user.eumetsat.int/data/satellites/meteosat-third-generation/resources
 - EUMETVIEW (https://view.eumetsat.int/productviewer?v=default) can be useful to scan which time span is of interest.
