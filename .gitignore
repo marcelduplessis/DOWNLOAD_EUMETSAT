@@ -19,8 +19,11 @@ Thumbs.db
 *.log
 
 # Data, figures and jupyter notebooks
-data/
-figures/
-notebooks/
+data/*
+data/.gitkeep
+figures/*
+figures/.gitkeep
+notebooks/*
+!notebooks/.gitkeep
 *.nc
 *.zip
