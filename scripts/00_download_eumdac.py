@@ -78,8 +78,8 @@ datatailor = eumdac.DataTailor(token)
 # COLLECTION : UNCOMMENT DESIRED COLLECTION
 # -----------------------------
 # coll = 'EO:EUM:DAT:0662'    # MTG FCI NR
-# coll = "EO:EUM:DAT:0665"    # MTG FCI HR
-coll = 'EO:EUM:DAT:0800'    # MTG FCI CLM, cloud_mask, grib 
+coll = "EO:EUM:DAT:0665"    # MTG FCI HR
+# coll = 'EO:EUM:DAT:0800'    # MTG FCI CLM, cloud_mask, grib 
 # coll = 'EO:EUM:DAT:0678'    # MTG FCI CLS, cloud_state, netcdf, pipeline not coded yet
 
 if coll == 'EO:EUM:DAT:0662':
@@ -99,7 +99,7 @@ except Exception as error:
 # -----------------------------
 # SEARCH: SET DESIRED TIME SPAN
 # -----------------------------
-start = datetime.datetime(2026, 3, 13, 4, 30)
+start = datetime.datetime(2026, 3, 28, 0, 0)
 end   = datetime.datetime(2026, 4, 1, 0, 0) 
 # download starts from most recent products (closest to end) to oldest (closest to start) 
 # if download is interrupted, resume from the last downloaded file before server error
