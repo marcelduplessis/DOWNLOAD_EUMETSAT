@@ -42,8 +42,8 @@ from params import raw_data_dir_rrad_nr, raw_data_dir_rrad_hr, raw_data_dir_clm,
 # -----------------------------
 # TIME WINDOW
 # -----------------------------
-YYYY0, MM0, DD0, HH0, MN0 = 2026, 3, 28, 0, 0
-YYYY1, MM1, DD1, HH1, MN1 = 2026, 3, 31, 23, 0
+YYYY0, MM0, DD0, HH0, MN0 = 2026, 5, 26, 0, 0
+YYYY1, MM1, DD1, HH1, MN1 = 2026, 5, 27, 0, 0
 t0 = datetime(YYYY0, MM0, DD0, HH0, MN0)
 t1 = datetime(YYYY1, MM1, DD1, HH1, MN1)
 

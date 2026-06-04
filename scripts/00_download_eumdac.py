@@ -99,8 +99,8 @@ except Exception as error:
 # -----------------------------
 # SEARCH: SET DESIRED TIME SPAN
 # -----------------------------
-start = datetime.datetime(2026, 3, 28, 0, 0)
-end   = datetime.datetime(2026, 4, 1, 0, 0) 
+start = datetime.datetime(2026, 5, 26, 0, 0)
+end   = datetime.datetime(2026, 5, 27, 0, 0) 
 # download starts from most recent products (closest to end) to oldest (closest to start) 
 # if download is interrupted, resume from the last downloaded file before server error
 

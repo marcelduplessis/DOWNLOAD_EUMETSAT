@@ -19,7 +19,7 @@ base_dir = Path(__file__).resolve().parent
 # ── Data storage root ─────────────────────────────────────────────────────────
 # Set this to wherever you want raw and processed data stored.
 # Can be outside the repo (e.g. an external drive).
-DATA_DIR = Path("/Users/xduplm/Desktop/")
+DATA_DIR = Path("/home/mduplessis/share/EUMETSAT/")
 
 # ── Raw data directories ──────────────────────────────────────────────────────
 raw_data_dir_clm     = DATA_DIR / "raw_CLM"
