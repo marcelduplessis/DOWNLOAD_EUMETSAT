@@ -64,7 +64,7 @@ os.makedirs(DIR_OUT, exist_ok=True)
 # -----------------------------
 # DATA
 # -----------------------------
-ds = xr.open_dataset(os.path.join(DIR_IN,f"202603280000-202603312250_FCI-{channel}_{str(resolution).replace('.', 'p')}deg.nc"))
+ds = xr.open_dataset(os.path.join(DIR_IN,f"202605260000-202605262350_FCI-{channel}_{str(resolution).replace('.', 'p')}deg.nc"))
 # u_da = ds["U"]
 # v_da = ds["V"]
 # _, div, vort, _ = UVgrad(u_da, v_da)
@@ -222,7 +222,8 @@ def update(frame):
 interval_ms = 200  # ms per frame
 
 anim = animation.FuncAnimation(
-    fig, update,
+    fig,
+    update,
     frames=n_times,
     interval=interval_ms,
     blit=False  # blit=False needed for cartopy axes
@@ -231,9 +232,10 @@ anim = animation.FuncAnimation(
 # -----------------------------
 # SAVE
 # -----------------------------
-outfile = os.path.join(DIR_OUT, f"{channel}_snapshot_animation.mp4")
-writer = animation.FFMpegWriter(fps=5, bitrate=1800,
-                                extra_args=['-vcodec', 'libx264', '-pix_fmt', 'yuv420p'])
-anim.save(outfile, writer=writer, dpi=300)
+outfile = os.path.join(DIR_OUT, f"{channel}_snapshot_animation.gif")
+
+writer = animation.PillowWriter(fps=5)
+anim.save(outfile, writer=writer, dpi=150)
+
 plt.close(fig)
 print(f"Saved animation to {outfile}")
