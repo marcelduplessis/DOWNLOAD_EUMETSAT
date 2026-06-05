@@ -1,4 +1,4 @@
-"""
+"
 Animates a regional timeseries, for a given IR channel, of brightness
 temperature and its log_grad, overlaid with cloud mask.
 
@@ -64,7 +64,7 @@ os.makedirs(DIR_OUT, exist_ok=True)
 # -----------------------------
 # DATA
 # -----------------------------
-ds = xr.open_dataset(os.path.join(DIR_IN,f"202605260000-202605262350_FCI-{channel}_{str(resolution).replace('.', 'p')}deg.nc"))
+ds = xr.open_dataset(os.path.join(DIR_IN,f"202606041800-202606042350_FCI-{channel}_{str(resolution).replace('.', 'p')}deg.nc"))
 # u_da = ds["U"]
 # v_da = ds["V"]
 # _, div, vort, _ = UVgrad(u_da, v_da)

@@ -15,6 +15,7 @@ Output file: <t_start>-<t_end>_FCI-{channel}_0p02deg.nc
 Coded by Lucie Reymondet (Scripps-UCSD)
 """
 
+import datetime
 import os
 import re
 import glob
@@ -63,6 +64,47 @@ def find_timeseries(directory: str, pattern: str) -> str:
         print(f"WARNING: multiple matches for '{pattern}', using the first:\n  " +
               "\n  ".join(hits))
     return hits[0]
+
+
+def parse_timespan(path: str) -> tuple[datetime.datetime, datetime.datetime]:
+    """Extract the start and end datetimes from a concatenated NetCDF filename."""
+    basename = os.path.basename(path)
+    match = re.match(r"(?P<start>\d{12})-(?P<end>\d{12})_", basename)
+    if not match:
+        raise ValueError(f"Cannot parse time span from filename: {basename}")
+
+    start = datetime.datetime.strptime(match.group("start"), "%Y%m%d%H%M")
+    end = datetime.datetime.strptime(match.group("end"), "%Y%m%d%H%M")
+    return start, end
+
+
+def find_timeseries_last_48h(directory: str, pattern: str) -> str:
+    """Return the most recent concatenated NetCDF overlapping the last 48 hours."""
+    window_end = datetime.datetime.now()
+    window_start = window_end - datetime.timedelta(hours=48)
+
+    hits = glob.glob(os.path.join(directory, pattern))
+    hits = [h for h in hits if re.match(r"\d{12}-\d{12}_", os.path.basename(h))]
+
+    matching_hits = []
+    for hit in hits:
+        start, end = parse_timespan(hit)
+        if end >= window_start and start <= window_end:
+            matching_hits.append((start, end, hit))
+
+    if not matching_hits:
+        raise FileNotFoundError(
+            f"No concatenated NetCDF matching '{pattern}' in the last 48 hours found in {directory}"
+        )
+
+    matching_hits.sort(key=lambda item: (item[1], item[0]))
+    if len(matching_hits) > 1:
+        print(
+            f"WARNING: multiple matches for '{pattern}' in the last 48 hours, using the most recent:\n  " +
+            "\n  ".join(hit[2] for hit in matching_hits)
+        )
+
+    return matching_hits[-1][2]
 
 
 def compute_loggrad(bt_2d: xr.DataArray, eps: float = 1e-12) -> xr.DataArray:
@@ -137,8 +179,8 @@ def build_mask(clm: xr.DataArray) -> xr.DataArray:
 
 def main():
     # ── 1. Locate input files ─────────────────────────────────────────────
-    rrad_path = find_timeseries(DIR_RRAD, "*FCI-1C-RRAD*.nc")
-    clm_path  = find_timeseries(DIR_CLM,  "*FCI-2-CLM*.nc")
+    rrad_path = find_timeseries_last_48h(DIR_RRAD, "*FCI-1C-RRAD*.nc")
+    clm_path  = find_timeseries_last_48h(DIR_CLM,  "*FCI-2-CLM*.nc")
 
     print(f"RRAD file : {rrad_path}")
     print(f"CLM  file : {clm_path}")

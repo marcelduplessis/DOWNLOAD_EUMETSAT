@@ -15,16 +15,13 @@ from params import consumer_key, consumer_secret,\
 # TIME ZONE
 # -----------------------------
 PACIFIC = ZoneInfo("America/Los_Angeles")
+ATLANTIC = ZoneInfo("Africa/Johannesburg")
 
 # -----------------------------
 # PATHS
 # -----------------------------
-RAW_DIR_RRAD_NR = Path(raw_data_dir_rrad_nr).expanduser().resolve()
-RAW_DIR_RRAD_HR = Path(raw_data_dir_rrad_hr).expanduser().resolve()
 RAW_DIR_CLM  = Path(raw_data_dir_clm).expanduser().resolve()
 
-RAW_DIR_RRAD_NR.mkdir(parents=True, exist_ok=True)
-RAW_DIR_RRAD_HR.mkdir(parents=True, exist_ok=True)
 RAW_DIR_CLM.mkdir(parents=True, exist_ok=True)
 
 # -----------------------------
@@ -69,7 +66,8 @@ def get_token():
 # AUTH
 # -----------------------------
 token = get_token()
-token_expiration = token.expiration.replace(tzinfo=PACIFIC)
+token_expiration = token.expiration.replace(tzinfo=ATLANTIC)
+# token_expiration = token.expiration.replace(tzinfo=PACIFIC)
 
 datastore = eumdac.DataStore(token)
 datatailor = eumdac.DataTailor(token)
@@ -82,12 +80,9 @@ datatailor = eumdac.DataTailor(token)
 coll = 'EO:EUM:DAT:0800'    # MTG FCI CLM, cloud_mask, grib 
 # coll = 'EO:EUM:DAT:0678'    # MTG FCI CLS, cloud_state, netcdf, pipeline not coded yet
 
-if coll == 'EO:EUM:DAT:0662':
-    RAW_DIR = RAW_DIR_RRAD_NR
-elif coll == 'EO:EUM:DAT:0800':
+
+if coll == 'EO:EUM:DAT:0800':
     RAW_DIR = RAW_DIR_CLM
-elif coll == "EO:EUM:DAT:0665":
-    RAW_DIR = RAW_DIR_RRAD_HR
 else:
     raise ValueError("Invalid collection name")
 
@@ -99,8 +94,14 @@ except Exception as error:
 # -----------------------------
 # SEARCH: SET DESIRED TIME SPAN
 # -----------------------------
-start = datetime.datetime(2026, 6, 3, 0, 0)
-end   = datetime.datetime(2026, 6, 4, 0, 0) 
+now = datetime.datetime.now(ATLANTIC).replace(tzinfo=None)
+start = now - datetime.timedelta(hours=13)
+end = now - datetime.timedelta(hours=12)
+
+print(f"Searching for products from {start} to {end} in collection {coll}")
+
+# start = datetime.datetime(2026, 6, 4, 18, 0)
+# end   = datetime.datetime(2026, 6, 5, 0, 0) 
 # download starts from most recent products (closest to end) to oldest (closest to start) 
 # if download is interrupted, resume from the last downloaded file before server error
 
@@ -132,11 +133,11 @@ for product in products:
         target.unlink(missing_ok=True)
 
     # Refresh token if needed
-    now_pt = datetime.datetime.now(PACIFIC)
+    now_pt = datetime.datetime.now(ATLANTIC)
     if now_pt + datetime.timedelta(minutes=10) > token_expiration:
         print("Refreshing token")
         token = get_token()
-        token_expiration = token.expiration.replace(tzinfo=PACIFIC)
+        token_expiration = token.expiration.replace(tzinfo=ATLANTIC)
         datastore = eumdac.DataStore(token)
         datatailor = eumdac.DataTailor(token)
 

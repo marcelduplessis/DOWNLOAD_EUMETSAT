@@ -11,7 +11,8 @@ Output: f"{t0}-{t1}_{product}_{str(resolution).replace('.', 'p')}deg.nc"
 from zipfile import ZipFile
 import re
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from satpy.scene import Scene
 from satpy import find_files_and_readers
 from pyresample import create_area_def
@@ -42,10 +43,10 @@ from params import raw_data_dir_rrad_nr, raw_data_dir_rrad_hr, raw_data_dir_clm,
 # -----------------------------
 # TIME WINDOW
 # -----------------------------
-YYYY0, MM0, DD0, HH0, MN0 = 2026, 5, 26, 0, 0
-YYYY1, MM1, DD1, HH1, MN1 = 2026, 5, 27, 0, 0
-t0 = datetime(YYYY0, MM0, DD0, HH0, MN0)
-t1 = datetime(YYYY1, MM1, DD1, HH1, MN1)
+ATLANTIC = ZoneInfo("Africa/Johannesburg")
+now = datetime.now(ATLANTIC).replace(tzinfo=None)
+t0 = now - timedelta(hours=13)
+t1 = now - timedelta(hours=12)
 
 # -----------------------------
 # AREA OF INTEREST
@@ -259,7 +260,10 @@ def process_zip(zip_file):
                 chunks=original.data.chunks,
             )
             ir_channels = None
-            
+
+        # Force FCI data into memory before resampling    
+        for ch in ir_channels or []:
+            scn[ch].load()
 
         # ── Crop → resample → restructure → save ─────────────────────────
         scn             = scn.crop(ll_bbox=(lon_min, lat_min, lon_max, lat_max))
