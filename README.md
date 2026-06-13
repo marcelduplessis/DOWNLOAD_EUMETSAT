@@ -1,6 +1,6 @@
 # MTG FCI Download and Processing Pipeline
 
-Marcel du Plessis (University of Gothenburg), adapted from work by Lucie Reymondet (Scripps Institution of Oceanography, UCSD).
+*Marcel du Plessis (University of Gothenburg)*, adapted from work by *Lucie Reymondet (Scripps Institution of Oceanography, UCSD)*.
 
 This repository downloads, reprojects, and visualizes MTG FCI full-disk products (radiances and cloud mask) over a user-defined region.
 
