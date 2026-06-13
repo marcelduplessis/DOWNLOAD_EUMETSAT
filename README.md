@@ -17,11 +17,6 @@ DOWNLOAD_EUMETSAT/
 |  |- satpy_env.yml
 |- figures/
 |  |- .gitkeep
-|  |- ir_105_snapshot.png
-|  |- ir_105_snapshot_animation.gif
-|  |- time_deltas_clm.png
-|  |- time_deltas_rrad_hr.png
-|  |- time_deltas_rrad_nr.png
 |- logs/
 |  |- goflow_sst.log
 |- notebooks/
