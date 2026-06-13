@@ -39,6 +39,6 @@ regridded_data_dir_rrad_hr = DATA_DIR / "regridded_RRAD_HR"
 regridded_data_dir_clm     = DATA_DIR / "regridded_CLM"
 
 # ── Domain of interest ────────────────────────────────────────────────────────
-lon_min, lon_max =  10.0,  35.0
-lat_min, lat_max = -45.0, -30.0
+lon_min, lon_max =  5.0,  25.0
+lat_min, lat_max = -44.0, -33.0
 resolution       =   0.02          # degrees

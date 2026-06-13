@@ -11,6 +11,7 @@ Output: f"{t0}-{t1}_{product}_{str(resolution).replace('.', 'p')}deg.nc"
 from zipfile import ZipFile
 import re
 import os
+import argparse
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from satpy.scene import Scene
@@ -26,6 +27,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 import eccodes as ec
 import dask.array as da
+from netCDF4 import Dataset
 
 import warnings
 from pyproj.exceptions import ProjError
@@ -36,8 +38,8 @@ warnings.filterwarnings(
     module="pyproj",
 )
 
-from params import raw_data_dir_rrad_nr, raw_data_dir_rrad_hr, raw_data_dir_clm, \
-    base_dir, regridded_data_dir_rrad_nr, regridded_data_dir_rrad_hr, regridded_data_dir_clm, \
+from params import raw_data_dir_rrad_hr, raw_data_dir_clm, \
+    base_dir, regridded_data_dir_rrad_hr, regridded_data_dir_clm, \
     lon_min, lon_max, lat_min, lat_max, resolution 
 
 # -----------------------------
@@ -45,8 +47,8 @@ from params import raw_data_dir_rrad_nr, raw_data_dir_rrad_hr, raw_data_dir_clm,
 # -----------------------------
 ATLANTIC = ZoneInfo("Africa/Johannesburg")
 now = datetime.now(ATLANTIC).replace(tzinfo=None)
-t0 = now - timedelta(hours=13)
-t1 = now - timedelta(hours=12)
+t0 = now - timedelta(hours=4) # 17
+t1 = now - timedelta(hours=3) # 15
 
 # -----------------------------
 # AREA OF INTEREST
@@ -195,6 +197,18 @@ def compute_loggrad(da, channel_name, eps=1e-12):
     return log_grad
 
 
+def is_valid_netcdf(path):
+    """Return True if file exists, is non-empty, and can be opened by netCDF4."""
+    try:
+        if (not os.path.exists(path)) or os.path.getsize(path) == 0:
+            return False
+        with Dataset(path, mode="r"):
+            pass
+        return True
+    except Exception:
+        return False
+
+
 # -----------------------------
 # PER FILE PROCESSOR
 # -----------------------------
@@ -295,6 +309,19 @@ def _worker_init(mask):
 
 if __name__ == "__main__":
 
+    parser = argparse.ArgumentParser(
+        description=(
+            "Regrid FCI RRAD/CLM zip files into regional NetCDF time series. "
+            "Optionally delete invalid per-timestep NetCDF files before concat."
+        )
+    )
+    parser.add_argument(
+        "--delete-invalid-nc",
+        action="store_true",
+        help="Delete invalid/empty per-timestep .nc files found before concatenation.",
+    )
+    args = parser.parse_args()
+
     num_cores = os.cpu_count()
     max_workers = 60
     # print(f"Detected {num_cores} CPU cores, using {max_workers} workers")
@@ -340,11 +367,32 @@ if __name__ == "__main__":
     # ── CONCATENATION ────────────────────────────────────────────────────
     for product, out_dir in [("FCI-1C-RRAD", DIR_OUT_RRAD),
                              ("FCI-2-CLM", DIR_OUT_CLM)]:
-        files = sorted(
+        files_all = sorted(
             f for f in os.listdir(out_dir) 
             if f.endswith(".nc") and not re.match(r"\d{12}-\d{12}_", f)
         )
+        files = []
+        bad_files = []
+        for f in files_all:
+            fpath = os.path.join(out_dir, f)
+            if is_valid_netcdf(fpath):
+                files.append(f)
+            else:
+                bad_files.append(f)
+
+        if bad_files:
+            print(f"Skipping {len(bad_files)} invalid NetCDF files in {out_dir}:")
+            for bf in bad_files[:10]:
+                print(f"  - {bf}")
+            if len(bad_files) > 10:
+                print(f"  ... and {len(bad_files)-10} more")
+            if args.delete_invalid_nc:
+                for bf in bad_files:
+                    os.remove(os.path.join(out_dir, bf))
+                print(f"Deleted {len(bad_files)} invalid NetCDF files from {out_dir}")
+
         if not files:
+            print(f"No valid files available for concatenation for {product} in {out_dir}")
             continue
 
         timestamps = [f[:12] for f in files]  # "YYYYMMDDHHMM" for output
@@ -361,6 +409,7 @@ if __name__ == "__main__":
             concat_dim="time",
             combine="nested",
             parallel=True,
+            engine="netcdf4"
         ) as ds:
             t_ref = str(ds.time.values[0].astype("datetime64[D]"))  # e.g. "2025-01-26"
             ds.to_netcdf(outfile, 

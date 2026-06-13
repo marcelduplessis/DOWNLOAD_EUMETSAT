@@ -22,7 +22,7 @@ import glob
 import numpy as np
 import xarray as xr
 
-from params import regridded_data_dir_rrad_nr, regridded_data_dir_rrad_hr, \
+from params import regridded_data_dir_rrad_hr, \
     regridded_data_dir_clm, processed_goflow_inputs, \
     lon_min, lon_max, lat_min, lat_max, resolution 
 
@@ -107,6 +107,131 @@ def find_timeseries_last_48h(directory: str, pattern: str) -> str:
     return matching_hits[-1][2]
 
 
+def list_timeseries_in_window(
+    directory: str,
+    pattern: str,
+    window_hours: int = 48,
+) -> list[tuple[datetime.datetime, datetime.datetime, str]]:
+    """Return all concatenated NetCDF paths overlapping the trailing window."""
+    window_end = datetime.datetime.now()
+    window_start = window_end - datetime.timedelta(hours=window_hours)
+
+    hits = glob.glob(os.path.join(directory, pattern))
+    hits = [h for h in hits if re.match(r"\d{12}-\d{12}_", os.path.basename(h))]
+
+    matching_hits = []
+    for hit in hits:
+        start, end = parse_timespan(hit)
+        if end >= window_start and start <= window_end:
+            matching_hits.append((start, end, hit))
+
+    matching_hits.sort(key=lambda item: (item[0], item[1]))
+    return matching_hits
+
+
+def time_prefix_from_path(path: str) -> str:
+    """Return YYYYMMDDHHMM-YYYYMMDDHHMM from a concatenated NetCDF path."""
+    basename = os.path.basename(path)
+    match = re.match(r"(?P<prefix>\d{12}-\d{12})_", basename)
+    if not match:
+        raise ValueError(f"Cannot extract time prefix from filename: {basename}")
+    return match.group("prefix")
+
+
+def output_path_from_prefix(time_prefix: str) -> str:
+    return os.path.join(
+        DIR_OUT,
+        f"{time_prefix}_FCI-{channel}_{str(resolution).replace('.', 'p')}deg.nc",
+    )
+
+
+def process_timeseries_pair(rrad_path: str, clm_path: str, outfile: str) -> None:
+    print(f"RRAD file : {rrad_path}")
+    print(f"CLM  file : {clm_path}")
+
+    # ── 2. Load data ──────────────────────────────────────────────────────
+    print("Loading datasets …")
+    with xr.open_dataset(rrad_path) as ds_rrad, xr.open_dataset(clm_path) as ds_clm:
+        bt = ds_rrad[channel]          # (time, lat, lon) float32, land=NaN
+        clm = ds_clm["cloud_mask"]    # (time, lat, lon) float32, land=NaN
+
+        # ── 3. BT ─────────────────────────────────────────────────────────────
+        bt = bt.astype(np.float32)
+        bt.attrs.update(
+            long_name=f"{channel} brightness temperature",
+            units="K",
+            source=f"FCI L1C RRAD FDHSI, channel {channel}, calibration=brightness_temperature",
+        )
+
+        # ── 4. loggrad_T (computed time-step by time-step to keep memory low) ─
+        print("Computing loggrad_T …")
+        loggrad_slices = []
+        for t_idx in range(bt.sizes["time"]):
+            bt_slice = bt.isel(time=t_idx)   # 2-D (lat, lon)
+            lg_slice = compute_loggrad(bt_slice)
+            loggrad_slices.append(
+                lg_slice.expand_dims("time").assign_coords(time=[bt["time"].values[t_idx]])
+            )
+        loggrad_T = xr.concat(loggrad_slices, dim="time")
+
+        # ── 5. mask ──────────────────────────────────────────────────────────
+        print("Building mask …")
+        mask = build_mask(clm)
+
+        # ── 6. loggrad_T_masked ──────────────────────────────────────────────
+        # Blank only confirmed cloudy pixels (mask==0); leave NaN no-data pixels
+        # untouched so they remain NaN rather than being double-assigned.
+        loggrad_T_masked = loggrad_T.where(mask != 0.0)
+        loggrad_T_masked = loggrad_T_masked.astype(np.float32)
+        loggrad_T_masked.attrs.update(
+            long_name=(f"Log10 horizontal gradient magnitude of {channel} BT, "
+                       "masked to NaN where cloudy (mask=0); "
+                       "no-data pixels (mask=NaN) left as NaN but not explicitly masked"),
+            units="log10(K/m)",
+            masking="NaN where mask==0 (CLM=2, cloudy) only",
+        )
+
+        # ── 7. Assemble output dataset ────────────────────────────────────────
+        ds_out = xr.Dataset(
+            {
+                "BT": bt,
+                "loggrad_T": loggrad_T,
+                "mask": mask,
+                "loggrad_T_masked": loggrad_T_masked,
+            },
+            coords={
+                "time": bt["time"],
+                "lat": bt["lat"],
+                "lon": bt["lon"],
+            },
+        )
+
+        # Clean up any inherited land-mask global attribute
+        # ds_out.attrs.pop("land_mask", None)
+        ds_out.attrs.update(
+            title=f"FCI {channel} brightness temperature, gradient, and cloud mask",
+            source=(f"RRAD: {os.path.basename(rrad_path)}; "
+                    f"CLM: {os.path.basename(clm_path)}"),
+            Conventions="CF-1.8",
+        )
+
+        # ── 8. Save ───────────────────────────────────────────────────────────
+        print(f"Saving → {outfile}")
+        t_ref = str(ds_out["time"].values[0].astype("datetime64[D]"))
+        ds_out.to_netcdf(
+            outfile,
+            encoding={
+                "time": {"units": f"minutes since {t_ref}"},
+                "BT": {"dtype": "float32", "zlib": True, "complevel": 4},
+                "loggrad_T": {"dtype": "float32", "zlib": True, "complevel": 4},
+                "mask": {"dtype": "float32", "zlib": True, "complevel": 4},
+                "loggrad_T_masked": {"dtype": "float32", "zlib": True, "complevel": 4},
+            },
+        )
+        print("Done.")
+        print(ds_out)
+
+
 def compute_loggrad(bt_2d: xr.DataArray, eps: float = 1e-12) -> xr.DataArray:
     """
     Log10 of the horizontal gradient magnitude of a 2-D BT field (lat × lon).
@@ -178,102 +303,84 @@ def build_mask(clm: xr.DataArray) -> xr.DataArray:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main():
-    # ── 1. Locate input files ─────────────────────────────────────────────
-    rrad_path = find_timeseries_last_48h(DIR_RRAD, "*FCI-1C-RRAD*.nc")
-    clm_path  = find_timeseries_last_48h(DIR_CLM,  "*FCI-2-CLM*.nc")
+    os.makedirs(DIR_OUT, exist_ok=True)
 
-    print(f"RRAD file : {rrad_path}")
-    print(f"CLM  file : {clm_path}")
+    # ── 1. Locate candidate files in the trailing 48-hour window ──────────
+    rrad_hits = list_timeseries_in_window(DIR_RRAD, "*FCI-1C-RRAD*.nc", window_hours=48)
+    clm_hits = list_timeseries_in_window(DIR_CLM, "*FCI-2-CLM*.nc", window_hours=48)
 
-    # Derive output filename from the RRAD file's time-span prefix
-    basename    = os.path.basename(rrad_path)          # e.g. 202502010000-202502010050_FCI-1C-RRAD_0p02deg.nc
-    time_prefix = basename.split("_")[0]               # "202502010000-202502010050"
-    outfile     = os.path.join(DIR_OUT,
-                               f"{time_prefix}_FCI-{channel}_{str(resolution).replace('.', 'p')}deg.nc")
+    if not rrad_hits:
+        raise FileNotFoundError(
+            f"No concatenated NetCDF matching '*FCI-1C-RRAD*.nc' in the last 48 hours found in {DIR_RRAD}"
+        )
+    if not clm_hits:
+        raise FileNotFoundError(
+            f"No concatenated NetCDF matching '*FCI-2-CLM*.nc' in the last 48 hours found in {DIR_CLM}"
+        )
 
-    # ── 2. Load data ──────────────────────────────────────────────────────
-    print("Loading datasets …")
-    ds_rrad = xr.open_dataset(rrad_path)
-    ds_clm  = xr.open_dataset(clm_path)
+    # Keep one file per timespan prefix and prefer the latest end time.
+    rrad_by_prefix = {}
+    for start, end, path in rrad_hits:
+        prefix = time_prefix_from_path(path)
+        prev = rrad_by_prefix.get(prefix)
+        if prev is None or (end, start) > (prev[0], prev[1]):
+            rrad_by_prefix[prefix] = (end, start, path)
 
-    bt  = ds_rrad[channel]          # (time, lat, lon) float32, land=NaN
-    clm = ds_clm["cloud_mask"]       # (time, lat, lon) float32, land=NaN
+    clm_by_prefix = {}
+    for start, end, path in clm_hits:
+        prefix = time_prefix_from_path(path)
+        prev = clm_by_prefix.get(prefix)
+        if prev is None or (end, start) > (prev[0], prev[1]):
+            clm_by_prefix[prefix] = (end, start, path)
 
-    # ── 3. BT ─────────────────────────────────────────────────────────────
-    bt = bt.astype(np.float32)
-    bt.attrs.update(
-        long_name  = f"{channel} brightness temperature",
-        units      = "K",
-        source     = f"FCI L1C RRAD FDHSI, channel {channel}, calibration=brightness_temperature",
+    rrad_prefixes = set(rrad_by_prefix)
+    clm_prefixes = set(clm_by_prefix)
+    rrad_only_prefixes = sorted(rrad_prefixes - clm_prefixes)
+    clm_only_prefixes = sorted(clm_prefixes - rrad_prefixes)
+
+    if rrad_only_prefixes:
+        print(
+            f"WARNING: {len(rrad_only_prefixes)} RRAD prefix(es) in the last 48h "
+            "have no matching CLM file:"
+        )
+        for prefix in rrad_only_prefixes:
+            print(f"  {prefix}")
+
+    if clm_only_prefixes:
+        print(
+            f"WARNING: {len(clm_only_prefixes)} CLM prefix(es) in the last 48h "
+            "have no matching RRAD file:"
+        )
+        for prefix in clm_only_prefixes:
+            print(f"  {prefix}")
+
+    common_prefixes = sorted(
+        set(rrad_by_prefix) & set(clm_by_prefix),
+        key=lambda p: (rrad_by_prefix[p][0], rrad_by_prefix[p][1]),
     )
+    if not common_prefixes:
+        raise FileNotFoundError(
+            "No matching RRAD/CLM timespan prefixes were found in the last 48 hours."
+        )
 
-    # ── 4. loggrad_T (computed time-step by time-step to keep memory low) ─
-    print("Computing loggrad_T …")
-    loggrad_slices = []
-    for t_idx in range(bt.sizes["time"]):
-        bt_slice       = bt.isel(time=t_idx)   # 2-D (lat, lon)
-        lg_slice       = compute_loggrad(bt_slice)
-        loggrad_slices.append(lg_slice.expand_dims("time").assign_coords(
-            time=[bt["time"].values[t_idx]]
-        ))
-    loggrad_T = xr.concat(loggrad_slices, dim="time")
+    n_processed = 0
+    n_skipped = 0
+    for time_prefix in common_prefixes:
+        outfile = output_path_from_prefix(time_prefix)
+        if os.path.exists(outfile):
+            print(f"Skipping existing output: {outfile}")
+            n_skipped += 1
+            continue
 
-    # ── 5. mask ──────────────────────────────────────────────────────────
-    print("Building mask …")
-    mask = build_mask(clm)
+        rrad_path = rrad_by_prefix[time_prefix][2]
+        clm_path = clm_by_prefix[time_prefix][2]
+        process_timeseries_pair(rrad_path, clm_path, outfile)
+        n_processed += 1
 
-    # ── 6. loggrad_T_masked ──────────────────────────────────────────────
-    # Blank only confirmed cloudy pixels (mask==0); leave NaN no-data pixels
-    # untouched so they remain NaN rather than being double-assigned.
-    loggrad_T_masked = loggrad_T.where(mask != 0.0)
-    loggrad_T_masked = loggrad_T_masked.astype(np.float32)
-    loggrad_T_masked.attrs.update(
-        long_name = (f"Log10 horizontal gradient magnitude of {channel} BT, "
-                     "masked to NaN where cloudy (mask=0); "
-                     "no-data pixels (mask=NaN) left as NaN but not explicitly masked"),
-        units     = "log10(K/m)",
-        masking   = "NaN where mask==0 (CLM=2, cloudy) only",
+    print(
+        f"Completed processing window: processed {n_processed}, skipped {n_skipped}, "
+        f"total matched prefixes {len(common_prefixes)}"
     )
-
-    # ── 7. Assemble output dataset ────────────────────────────────────────
-    ds_out = xr.Dataset(
-        {
-            "BT"              : bt,
-            "loggrad_T"       : loggrad_T,
-            "mask"            : mask,
-            "loggrad_T_masked": loggrad_T_masked,
-        },
-        coords={
-            "time": bt["time"],
-            "lat" : bt["lat"],
-            "lon" : bt["lon"],
-        },
-    )
-
-    # Clean up any inherited land-mask global attribute
-    # ds_out.attrs.pop("land_mask", None)
-    ds_out.attrs.update(
-        title     = f"FCI {channel} brightness temperature, gradient, and cloud mask",
-        source    = (f"RRAD: {os.path.basename(rrad_path)}; "
-                     f"CLM: {os.path.basename(clm_path)}"),
-        Conventions = "CF-1.8",
-    )
-
-    # ── 8. Save ───────────────────────────────────────────────────────────
-    print(f"Saving → {outfile}")
-    t_ref = str(ds_out["time"].values[0].astype("datetime64[D]"))
-    ds_out.to_netcdf(
-        outfile,
-        encoding={
-            "time"              : {"units": f"minutes since {t_ref}"},
-            "BT"                : {"dtype": "float32", "zlib": True, "complevel": 4},
-            "loggrad_T"         : {"dtype": "float32", "zlib": True, "complevel": 4},
-            "mask"              : {"dtype": "float32", "zlib": True, "complevel": 4},
-            "loggrad_T_masked"  : {"dtype": "float32", "zlib": True, "complevel": 4},
-        },
-    )
-    print("Done.")
-    print(ds_out)
 
 
 if __name__ == "__main__":

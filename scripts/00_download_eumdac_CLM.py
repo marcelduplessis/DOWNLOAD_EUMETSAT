@@ -95,8 +95,8 @@ except Exception as error:
 # SEARCH: SET DESIRED TIME SPAN
 # -----------------------------
 now = datetime.datetime.now(ATLANTIC).replace(tzinfo=None)
-start = now - datetime.timedelta(hours=13)
-end = now - datetime.timedelta(hours=12)
+start = now - datetime.timedelta(hours=4)
+end = now - datetime.timedelta(hours=3)
 
 print(f"Searching for products from {start} to {end} in collection {coll}")
 
