@@ -31,7 +31,7 @@ resolve_conda_exe() {
 }
 
 SELECTED_SCRIPTS="
-save_goflow_daily_mean.py
+04_save_goflow_daily_mean.py
 "
 
 list_scripts() {
