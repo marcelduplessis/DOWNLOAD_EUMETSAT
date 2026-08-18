@@ -42,24 +42,39 @@ def area_label_from_params():
 
 
 def cold_bt_overlay_cmap(n=256):
-    grey = np.linspace(0.35, 0.85, n)
+    grey = np.linspace(0.9, 0.35, n)
     rgba = np.column_stack([grey, grey, grey, np.ones(n)])
     return ListedColormap(rgba)
 
 
-def show_legend(ax, *, loc="lower left", fontsize=11, frameon=True):
-    """Add standardized Seaglider and Wave Glider legend proxies to a map axis."""
-    legend_elements = [
-        Line2D(
-            [0], [0], marker="o", linestyle="", markerfacecolor="gold",
-            markeredgecolor="k", label="SG Koeksister"
-        ),
-        Line2D(
-            [0], [0], marker="s", linestyle="", markerfacecolor="#B87333",
-            markeredgecolor="k", label="WG Melktert"
-        ),
-    ]
-    ax.legend(handles=legend_elements, loc=loc, frameon=frameon, fontsize=fontsize)
+def show_legend(
+    ax,
+    *,
+    show_glider=True,
+    show_waveglider=True,
+    loc="lower left",
+    fontsize=11,
+    frameon=True,
+):
+    """Add legend proxies for enabled Seaglider and Wave Glider tracks."""
+    legend_elements = []
+    if show_glider:
+        legend_elements.append(
+            Line2D(
+                [0], [0], marker="o", linestyle="", markerfacecolor="gold",
+                markeredgecolor="k", label="SG Koeksister"
+            )
+        )
+    if show_waveglider:
+        legend_elements.append(
+            Line2D(
+                [0], [0], marker="s", linestyle="", markerfacecolor="#B87333",
+                markeredgecolor="k", label="WG Melktert"
+            )
+        )
+
+    if legend_elements:
+        ax.legend(handles=legend_elements, loc=loc, frameon=frameon, fontsize=fontsize)
     return ax
 
 
@@ -275,7 +290,13 @@ def make_animation(
     ax.coastlines(resolution="10m", linewidth=0.8, zorder=10)
     ax.add_feature(cfeature.LAND, facecolor="0.85", zorder=0)
     ax.add_feature(cfeature.RIVERS, edgecolor="white", linewidth=0.6, zorder=11)
-    show_legend(ax, loc="lower left", fontsize=11)
+    show_legend(
+        ax,
+        show_glider=glider_track is not None,
+        show_waveglider=waveglider_track is not None,
+        loc="lower left",
+        fontsize=11,
+    )
     
     gl = ax.gridlines(draw_labels=True, linewidth=0.75, color="gray", alpha=1, linestyle="--", zorder=15)
     gl.top_labels = False
@@ -567,9 +588,11 @@ def parse_args():
         help="CSV with columns: time, longitude, latitude.",
     )
     parser.add_argument(
-        "--no-glider-track",
-        action="store_true",
-        help="Disable plotting glider track overlay.",
+        "--glider-track",
+        dest="glider_track",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable/disable plotting Seaglider track overlay.",
     )
     parser.add_argument(
         "--waveglider-track-nc",
@@ -577,9 +600,11 @@ def parse_args():
         help="NetCDF with wave glider track (time/longitude/latitude).",
     )
     parser.add_argument(
-        "--no-waveglider-track",
-        action="store_true",
-        help="Disable plotting wave glider track overlay.",
+        "--waveglider-track",
+        dest="waveglider_track",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable/disable plotting Wave Glider track overlay.",
     )
     return parser.parse_args()
 
@@ -589,13 +614,13 @@ def main():
     ds = load_dataset(args.channel, hours=args.hours, input_dir=args.input_dir)
     glider_track = None
     waveglider_track = None
-    if not args.no_glider_track:
+    if args.glider_track:
         glider_track = load_glider_track(
             args.glider_track_csv,
             lon_bounds=(args.lon_min, args.lon_max),
             lat_bounds=(args.lat_min, args.lat_max),
         )
-    if not args.no_waveglider_track:
+    if args.waveglider_track:
         waveglider_track = load_waveglider_track(
             args.waveglider_track_nc,
             lon_bounds=(args.lon_min, args.lon_max),

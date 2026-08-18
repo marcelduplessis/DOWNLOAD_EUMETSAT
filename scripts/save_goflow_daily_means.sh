@@ -31,11 +31,7 @@ resolve_conda_exe() {
 }
 
 SELECTED_SCRIPTS="
-00_download_eumdac_CLM.py
-00_download_eumdac_RRAD_HR.py
-031_regrid_RRAD_CLM_to_timeseries.py
-032_process_timeseries_for_goflow.py
-04_goflow_regional_animation.py --no-glider-track --no-waveglider-track
+save_goflow_daily_mean.py
 "
 
 list_scripts() {
@@ -95,4 +91,4 @@ else
     done
 fi
 
-echo "All GOFLOW SST processing complete!"
+echo "Save daily max SST complete!"
