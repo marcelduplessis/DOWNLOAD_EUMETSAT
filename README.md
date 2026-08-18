@@ -97,7 +97,7 @@ list contains the four scripts above. It uses the first available Conda
 executable from the current environment, `CONDA_PREFIX`, `PATH`, or
 `/home/mduplessis/sw/miniconda3/bin/conda`.
 
-*Important:* The first time running the `./run_goflow_sst.sh`, included `scripts/02_build_land_mask.py` in `SELECTED_SCRIPTS`:
+*Important:* For the first time running `./run_goflow_sst.sh`, included `scripts/02_build_land_mask.py` in `SELECTED_SCRIPTS`:
 
 To check the time delta between the raw RRAD_HR files, also add:
 - `scripts/01_check_raw_products_time_deltas.py` 
