@@ -89,15 +89,14 @@ This wrapper runs the following scripts in its configured order using the
 |---|---|---|
 | 0 | `scripts/00_download_eumdac_CLM.py` | Download CLM zip products for a target period. |
 | 0 | `scripts/00_download_eumdac_RRAD_HR.py` | Download RRAD zip products for a target period. |
-| 1 | `scripts/031_regrid_RRAD_CLM_to_timeseries.py` | Regrid and concatenate regional RRAD/CLM time series. |
-| 2 | `scripts/032_process_timeseries_for_goflow.py` | Derive BT/log-gradient/masks into final analysis files. |
+| 1 | `scripts/02_build_land_mask.py` | *Only required for the first run* |
+| 2 | `scripts/031_regrid_RRAD_CLM_to_timeseries.py` | Regrid and concatenate regional RRAD/CLM time series. |
+| 3 | `scripts/032_process_timeseries_for_goflow.py` | Derive BT/log-gradient/masks into final analysis files. |
 
 The wrapper's `SELECTED_SCRIPTS` list controls which scripts run. The current
 list contains the four scripts above. It uses the first available Conda
 executable from the current environment, `CONDA_PREFIX`, `PATH`, or
 `/home/mduplessis/sw/miniconda3/bin/conda`.
-
-*Important:* For the first time running `./run_goflow_sst.sh`, include `scripts/02_build_land_mask.py` in `SELECTED_SCRIPTS`.
 
 To check the time delta between the raw RRAD_HR files, also add:
 - `scripts/01_check_raw_products_time_deltas.py` 
