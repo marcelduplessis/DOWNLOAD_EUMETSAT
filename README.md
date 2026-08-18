@@ -97,7 +97,7 @@ list contains the four scripts above. It uses the first available Conda
 executable from the current environment, `CONDA_PREFIX`, `PATH`, or
 `/home/mduplessis/sw/miniconda3/bin/conda`.
 
-*Important Note* If this is the first time running the code, included in `SELECTED_SCRIPTS`:
+*Important note:* If this is the first time running the code, included in `SELECTED_SCRIPTS`:
 - `scripts/02_build_land_mask.py`
 
 To check the time delta between the raw RRAD_HR files, also add:
