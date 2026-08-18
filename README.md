@@ -42,12 +42,6 @@ DOWNLOAD_EUMETSAT/
 ```
 <!-- structure:end -->
 
-To refresh this block after file changes:
-
-```bash
-./scripts/update_readme_structure.sh
-```
-
 ### What Goes Where
 
 - `scripts/`: all executable processing steps and shared utilities.
@@ -102,6 +96,14 @@ The wrapper's `SELECTED_SCRIPTS` list controls which scripts run. The current
 list contains the four scripts above. It uses the first available Conda
 executable from the current environment, `CONDA_PREFIX`, `PATH`, or
 `/home/mduplessis/sw/miniconda3/bin/conda`.
+
+*Important Note* If this is the first time running the code, included in `SELECTED_SCRIPTS`:
+- `scripts/02_build_land_mask.py`
+
+To check the time delta between the raw RRAD_HR files, also add:
+- `scripts/01_check_raw_products_time_deltas.py` 
+
+
 
 ### Save Daily GOFLOW Means
 
