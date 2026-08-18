@@ -29,6 +29,7 @@ DOWNLOAD_EUMETSAT/
 |  |- 031_regrid_RRAD_CLM_to_timeseries.py
 |  |- 032_process_timeseries_for_goflow.py
 |  |- 04_goflow_regional_animation.py
+|  |- 04_save_goflow_daily_mean.py
 |  |- figures/
 |  |- land_mask_10E-35E_45S-30S_0p02deg.nc
 |  |- land_mask_5E-25E_44S-33S_0p02deg.nc
@@ -36,6 +37,7 @@ DOWNLOAD_EUMETSAT/
 |  |- params_template.py
 |  |- plot_utils.py
 |  |- run_goflow_sst.sh
+|  |- save_goflow_daily_means.sh
 |  |- update_readme_structure.sh
 ```
 <!-- structure:end -->
@@ -78,17 +80,53 @@ cp scripts/params_template.py scripts/params.py
 
 ## Processing Pipeline
 
-Run scripts in order:
+The main GOFLOW processing wrapper is `scripts/run_goflow_sst.sh`. Run it from
+the `scripts/` directory:
+
+```bash
+cd scripts
+./run_goflow_sst.sh
+```
+
+This wrapper runs the following scripts in its configured order using the
+`satpy_env` Conda environment:
 
 | Step | Script | Purpose |
 |---|---|---|
 | 0 | `scripts/00_download_eumdac_CLM.py` | Download CLM zip products for a target period. |
 | 0 | `scripts/00_download_eumdac_RRAD_HR.py` | Download RRAD zip products for a target period. |
-| 1 | `scripts/01_check_raw_products_time_deltas.py` | Diagnose temporal gaps/duplicates in raw files. |
-| 2 | `scripts/02_build_land_mask.py` | Build regional land mask (typically once per domain). |
-| 3 | `scripts/031_regrid_RRAD_CLM_to_timeseries.py` | Regrid and concatenate regional RRAD/CLM time series. |
-| 4 | `scripts/032_process_timeseries_for_goflow.py` | Derive BT/log-gradient/masks into final analysis files. |
-| 5 | `scripts/04_goflow_regional_animation.py` | Build GOFLOW-ready GIF animations (BT and log-gradient), with optional glider-track overlays. |
+| 1 | `scripts/031_regrid_RRAD_CLM_to_timeseries.py` | Regrid and concatenate regional RRAD/CLM time series. |
+| 2 | `scripts/032_process_timeseries_for_goflow.py` | Derive BT/log-gradient/masks into final analysis files. |
+
+The wrapper's `SELECTED_SCRIPTS` list controls which scripts run. The current
+list contains the four scripts above. It uses the first available Conda
+executable from the current environment, `CONDA_PREFIX`, `PATH`, or
+`/home/mduplessis/sw/miniconda3/bin/conda`.
+
+### Save Daily GOFLOW Means
+
+After the processed GOFLOW files are available, run the daily summary wrapper
+from the same directory:
+
+```bash
+cd scripts
+./save_goflow_daily_means.sh
+```
+
+This wrapper uses the `satpy_env` Conda environment to run
+`scripts/04_save_goflow_daily_mean.py`. The Python script:
+
+- reads the latest 50 NetCDF files from
+	`/home/mduplessis/share/EUMETSAT/processed_goflow_inputs/5E-25E_44S-33S/`;
+- selects the previous UTC day;
+- removes duplicate timestamps;
+- converts brightness temperature from Kelvin to Celsius;
+- calculates cloud fraction and the maximum masked brightness temperature;
+- writes `BT_masked_Meteosat_YYYYMMDD.nc` to
+	`/home/mduplessis/share/EUMETSAT/goflow_daily_means/`.
+
+The output contains `BT_masked`, `cloud_fraction`, `start_time`, and
+`end_time`.
 
 ## Supported EUMETSAT Collections
 
